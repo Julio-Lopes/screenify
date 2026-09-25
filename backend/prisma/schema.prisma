@@ -1,0 +1,58 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ParticipantRole {
+  HOST
+  PARTICIPANT
+}
+
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  displayName String   @map("display_name") @db.VarChar(40)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  hostedRooms    Room[]            @relation("RoomHost")
+  participations RoomParticipant[]
+
+  @@map("users")
+}
+
+model Room {
+  id         String    @id @default(uuid()) @db.Uuid
+  code       String    @unique @db.Char(9)
+  hostId     String?   @map("host_id") @db.Uuid
+  emptySince DateTime? @map("empty_since")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  host         User?             @relation("RoomHost", fields: [hostId], references: [id], onDelete: SetNull)
+  participants RoomParticipant[]
+
+  @@index([emptySince])
+  @@map("rooms")
+}
+
+model RoomParticipant {
+  id       String          @id @default(uuid()) @db.Uuid
+  roomId   String          @map("room_id") @db.Uuid
+  userId   String          @map("user_id") @db.Uuid
+  role     ParticipantRole @default(PARTICIPANT)
+  joinedAt DateTime        @default(now()) @map("joined_at")
+  leftAt   DateTime?       @map("left_at")
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, leftAt])
+  @@index([userId])
+  @@map("room_participants")
+}

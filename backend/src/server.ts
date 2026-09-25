@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { createApp } from './app.js';
 import { env } from './config/env.js';
+import { prisma } from './database/prisma.js';
 import { logger } from './utils/logger.js';
 
 const app = createApp();
@@ -20,20 +21,23 @@ function shutdown(signal: NodeJS.Signals): void {
 
   logger.info(`[HTTP] ${signal} received, shutting down`);
 
-  httpServer.close((error) => {
-    if (error) {
-      logger.error({ err: error }, '[HTTP] Error while closing server');
-      process.exit(1);
-    }
-
-    logger.info('[HTTP] Server closed');
-    process.exit(0);
-  });
-
   setTimeout(() => {
     logger.error('[HTTP] Forced shutdown after timeout');
     process.exit(1);
   }, 10_000).unref();
+
+  httpServer.close(async (error) => {
+    if (error) {
+      logger.error({ err: error }, '[HTTP] Error while closing server');
+    } else {
+      logger.info('[HTTP] Server closed');
+    }
+
+    await prisma.$disconnect();
+    logger.info('[DB] Disconnected');
+
+    process.exit(error ? 1 : 0);
+  });
 }
 
 process.on('SIGINT', shutdown);

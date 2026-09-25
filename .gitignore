@@ -25,3 +25,6 @@ npm-debug.log*
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Prisma Client gerado
+backend/src/generated/
