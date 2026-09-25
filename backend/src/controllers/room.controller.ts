@@ -24,7 +24,7 @@ export async function deleteRoomHandler(req: Request, res: Response): Promise<vo
   const user = getAuthUser(req);
   const { code } = roomCodeParamsSchema.parse(req.params);
   const roomId = await deleteRoom(code, user.id);
-  notifyRoomDeleted(roomId);
+  await notifyRoomDeleted(roomId);
 
   res.status(204).end();
 }

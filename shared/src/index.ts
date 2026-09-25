@@ -1,5 +1,22 @@
 export type { ApiErrorBody, ApiErrorCode } from './types/api.js';
 export type {
+  ConnectTransportPayload,
+  ConsumePayload,
+  ConsumerInfo,
+  CreateTransportPayload,
+  DtlsParameters,
+  MediaErrorCode,
+  MediaKind,
+  MediaResult,
+  MediaSource,
+  ProducePayload,
+  ProducerInfo,
+  RtpCapabilities,
+  RtpParameters,
+  TransportDirection,
+  TransportInfo,
+} from './types/media.js';
+export type {
   ClientToServerEvents,
   JoinRoomErrorCode,
   JoinRoomPayload,

@@ -24,6 +24,7 @@
     "@screenify/shared": "*",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "mediasoup": "^3.27.1",
     "pino": "^10.3.1",
     "socket.io": "^4.8.4",
     "zod": "^4.6.5"

@@ -1,4 +1,5 @@
 import type { JoinRoomErrorCode, JoinRoomResult, Participant } from '@screenify/shared';
+import type { MediaRegistry } from '../mediasoup/media-registry.js';
 import { joinRoomSchema } from '../schemas/room.schemas.js';
 import { closeParticipation, hasJoinedBefore, openParticipation } from '../services/participant.service.js';
 import { findJoinableRoom, findRoomByCode } from '../services/room.service.js';
@@ -23,7 +24,7 @@ function fail(error: JoinRoomErrorCode, message: string): JoinRoomResult {
   return { ok: false, error, message };
 }
 
-export function registerRoomHandlers(io: AppServer, socket: AppSocket): void {
+export function registerRoomHandlers(io: AppServer, socket: AppSocket, media: MediaRegistry): void {
   socket.on('room:join', async (payload, ack) => {
     if (typeof ack !== 'function') return;
 
@@ -34,7 +35,7 @@ export function registerRoomHandlers(io: AppServer, socket: AppSocket): void {
     }
 
     try {
-      ack(await joinRoom(io, socket, parsed.data.code, parsed.data.password));
+      ack(await joinRoom(io, socket, media, parsed.data.code, parsed.data.password));
     } catch (error) {
       logger.error({ err: error, socketId: socket.id }, '[ROOM] Join failed');
       ack(fail('INTERNAL_ERROR', 'Não foi possível entrar na sala'));
@@ -43,7 +44,7 @@ export function registerRoomHandlers(io: AppServer, socket: AppSocket): void {
 
   socket.on('room:leave', async (ack) => {
     try {
-      await leaveCurrentRoom(io, socket);
+      await leaveCurrentRoom(io, socket, media);
     } catch (error) {
       logger.error({ err: error, socketId: socket.id }, '[ROOM] Leave failed');
     }
@@ -53,7 +54,7 @@ export function registerRoomHandlers(io: AppServer, socket: AppSocket): void {
   socket.on('disconnect', async (reason) => {
     logger.info({ userId: socket.data.user.id, reason }, '[SOCKET] Disconnected');
     try {
-      await leaveCurrentRoom(io, socket);
+      await leaveCurrentRoom(io, socket, media);
     } catch (error) {
       logger.error({ err: error, socketId: socket.id }, '[ROOM] Leave on disconnect failed');
     }
@@ -63,6 +64,7 @@ export function registerRoomHandlers(io: AppServer, socket: AppSocket): void {
 async function joinRoom(
   io: AppServer,
   socket: AppSocket,
+  media: MediaRegistry,
   code: string,
   password: string | undefined,
 ): Promise<JoinRoomResult> {
@@ -96,7 +98,7 @@ async function joinRoom(
 
   // Uma conexão fica em uma sala por vez
   if (socket.data.roomId && socket.data.roomId !== room.id) {
-    await leaveCurrentRoom(io, socket);
+    await leaveCurrentRoom(io, socket, media);
   }
 
   const previous = roomPresence.getEntry(room.id, user.id);
@@ -109,6 +111,8 @@ async function joinRoom(
       await oldSocket.leave(roomChannel(room.id));
       oldSocket.emit('room:session-replaced');
     }
+    // A mídia da aba antiga (transports, transmissão) é encerrada; a aba nova cria a dela
+    (await media.get(room.id))?.removePeer(user.id);
   }
 
   const participant: Participant = previous?.participant ?? {
@@ -141,7 +145,7 @@ async function joinRoom(
   };
 }
 
-async function leaveCurrentRoom(io: AppServer, socket: AppSocket): Promise<void> {
+async function leaveCurrentRoom(io: AppServer, socket: AppSocket, media: MediaRegistry): Promise<void> {
   const roomId = socket.data.roomId;
   if (!roomId) return;
 
@@ -152,13 +156,19 @@ async function leaveCurrentRoom(io: AppServer, socket: AppSocket): Promise<void>
   // Falso quando outra aba já assumiu o lugar: nada a anunciar
   if (!roomPresence.remove(roomId, userId, socket.id) || shuttingDown) return;
 
+  // Encerra a mídia da pessoa; se a sala esvaziou, libera o Router inteiro
+  (await media.get(roomId))?.removePeer(userId);
+  if (roomPresence.size(roomId) === 0) {
+    await media.close(roomId);
+  }
+
   await closeParticipation(roomId, userId, roomPresence.size(roomId) === 0);
   io.to(roomChannel(roomId)).emit('room:participant-left', { userId });
   logger.info({ roomId, userId }, '[ROOM] Participant left');
 }
 
 /** Chamado quando o criador exclui a sala: avisa e desconecta todo mundo dela */
-export function closeRoomForEveryone(io: AppServer, roomId: string): void {
+export async function closeRoomForEveryone(io: AppServer, media: MediaRegistry, roomId: string): Promise<void> {
   for (const entry of roomPresence.removeRoom(roomId)) {
     const socket = io.sockets.sockets.get(entry.socketId);
     if (!socket) continue;
@@ -167,4 +177,5 @@ export function closeRoomForEveryone(io: AppServer, roomId: string): void {
     socket.emit('room:closed', { reason: 'DELETED_BY_HOST' });
     void socket.leave(roomChannel(roomId));
   }
+  await media.close(roomId);
 }

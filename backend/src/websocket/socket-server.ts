@@ -1,36 +1,39 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
 import { env } from '../config/env.js';
+import type { MediaRegistry } from '../mediasoup/media-registry.js';
 import { logger } from '../utils/logger.js';
+import { registerMediaHandlers } from './media.handlers.js';
 import { closeRoomForEveryone, registerRoomHandlers, stopTrackingParticipations } from './room.handlers.js';
 import { socketAuth } from './socket-auth.js';
 import type { AppServer } from './types.js';
 
-let io: AppServer | null = null;
+let realtime: { io: AppServer; media: MediaRegistry } | null = null;
 
-export function createSocketServer(httpServer: HttpServer): AppServer {
-  const server: AppServer = new Server(httpServer, {
+export function createSocketServer(httpServer: HttpServer, media: MediaRegistry): AppServer {
+  const io: AppServer = new Server(httpServer, {
     cors: {
       origin: env.CLIENT_URL,
       credentials: true,
     },
   });
 
-  server.use(socketAuth);
+  io.use(socketAuth);
 
-  server.on('connection', (socket) => {
+  io.on('connection', (socket) => {
     logger.info({ userId: socket.data.user.id }, '[SOCKET] Connected');
-    registerRoomHandlers(server, socket);
+    registerRoomHandlers(io, socket, media);
+    registerMediaHandlers(io, socket, media);
   });
 
-  io = server;
-  return server;
+  realtime = { io, media };
+  return io;
 }
 
 /** Usado pela API HTTP para avisar em tempo real que a sala foi excluída */
-export function notifyRoomDeleted(roomId: string): void {
-  if (io) {
-    closeRoomForEveryone(io, roomId);
+export async function notifyRoomDeleted(roomId: string): Promise<void> {
+  if (realtime) {
+    await closeRoomForEveryone(realtime.io, realtime.media, roomId);
   }
 }
 

@@ -8,6 +8,9 @@ import type { Express } from 'express';
 import { createServer } from 'node:http';
 import { io as connect, type Socket } from 'socket.io-client';
 import { createApp } from '../../src/app.js';
+import { env } from '../../src/config/env.js';
+import { MediaRegistry } from '../../src/mediasoup/media-registry.js';
+import { WorkerPool } from '../../src/mediasoup/worker-pool.js';
 import { createSocketServer } from '../../src/websocket/socket-server.js';
 
 export type TestClient = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -20,11 +23,17 @@ export interface TestServer {
   close: () => Promise<void>;
 }
 
-/** Sobe o servidor completo (HTTP + WebSocket) numa porta livre escolhida pelo sistema */
+/** Sobe o servidor completo (HTTP + WebSocket + mediasoup) numa porta livre escolhida pelo sistema */
 export async function startTestServer(): Promise<TestServer> {
   const app = createApp();
   const httpServer = createServer(app);
-  const io = createSocketServer(httpServer);
+  const workers = await WorkerPool.create({
+    listenIp: env.MEDIASOUP_LISTEN_IP,
+    announcedAddress: env.MEDIASOUP_ANNOUNCED_IP,
+    minPort: env.MEDIASOUP_MIN_PORT,
+    maxPort: env.MEDIASOUP_MAX_PORT,
+  });
+  const io = createSocketServer(httpServer, new MediaRegistry(workers));
   const clients = new Set<TestClient>();
 
   await new Promise<void>((resolve) => httpServer.listen(0, resolve));
@@ -52,6 +61,7 @@ export async function startTestServer(): Promise<TestServer> {
     close: async () => {
       for (const client of clients) client.disconnect();
       await new Promise<void>((resolve) => io.close(() => resolve()));
+      workers.close();
     },
   };
 }
