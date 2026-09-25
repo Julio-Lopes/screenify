@@ -28,12 +28,13 @@ model User {
 }
 
 model Room {
-  id         String    @id @default(uuid()) @db.Uuid
-  code       String    @unique @db.Char(9)
-  hostId     String?   @map("host_id") @db.Uuid
-  emptySince DateTime? @map("empty_since")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
+  id           String    @id @default(uuid()) @db.Uuid
+  code         String    @unique @db.Char(9)
+  hostId       String?   @map("host_id") @db.Uuid
+  passwordHash String?   @map("password_hash") @db.VarChar(255)
+  emptySince   DateTime? @map("empty_since")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
   host         User?             @relation("RoomHost", fields: [hostId], references: [id], onDelete: SetNull)
   participants RoomParticipant[]

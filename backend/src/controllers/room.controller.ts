@@ -1,11 +1,12 @@
 import type { Request, Response } from 'express';
 import { getAuthUser } from '../middleware/authenticate.js';
-import { roomCodeParamsSchema } from '../schemas/room.schemas.js';
+import { createRoomSchema, roomCodeParamsSchema } from '../schemas/room.schemas.js';
 import { createRoom, deleteRoom, findRoomByCode } from '../services/room.service.js';
 
 export async function createRoomHandler(req: Request, res: Response): Promise<void> {
   const user = getAuthUser(req);
-  const room = await createRoom(user.id);
+  const input = createRoomSchema.parse(req.body ?? {});
+  const room = await createRoom(user.id, input);
 
   res.status(201).json({ room });
 }
