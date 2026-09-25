@@ -11,6 +11,7 @@
     "dev:backend": "npm run dev -w @screenify/backend",
     "dev:frontend": "npm run dev -w @screenify/frontend",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "build": "npm run build -w @screenify/backend && npm run build -w @screenify/frontend"
+    "build": "npm run build -w @screenify/backend && npm run build -w @screenify/frontend",
+    "test": "npm run test --workspaces --if-present"
   }
 }
