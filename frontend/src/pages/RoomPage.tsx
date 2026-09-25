@@ -1,5 +1,5 @@
 import type { Participant, RoomSummary } from '@screenify/shared';
-import { Link2, LoaderCircle, Lock, LogOut, MonitorOff, SearchX, Unplug, WifiOff } from 'lucide-react';
+import { Link2, LoaderCircle, Lock, LogOut, MonitorOff, ScreenShare, SearchX, Unplug, WifiOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Logo } from '../components/Logo';
@@ -7,13 +7,20 @@ import { StateMessage } from '../components/StateMessage';
 import { AvatarGroup } from '../components/room/AvatarGroup';
 import { EndRoomModal } from '../components/room/EndRoomModal';
 import { JoinForm, type JoinFormValues } from '../components/room/JoinForm';
+import { LiveBadge } from '../components/room/LiveBadge';
 import { ParticipantsPanel } from '../components/room/ParticipantsPanel';
 import { RoomShell } from '../components/room/RoomShell';
+import { ScreenPreview } from '../components/room/ScreenPreview';
+import { ShareScreenButton } from '../components/room/ShareScreenButton';
 import { Button } from '../components/ui/Button';
+import { useMediaSession } from '../hooks/useMediaSession';
 import { useRoom } from '../hooks/useRoom';
 import { useRoomConnection } from '../hooks/useRoomConnection';
+import { useRoomProducers } from '../hooks/useRoomProducers';
+import { useScreenShare } from '../hooks/useScreenShare';
 import { ApiError } from '../services/api';
 import { deleteRoom } from '../services/rooms';
+import type { AppSocket } from '../services/socket';
 import { createGuestSession } from '../services/users';
 import { useSessionStore } from '../stores/session.store';
 import { toast } from '../stores/toast.store';
@@ -126,6 +133,8 @@ function RoomConnection({ room, token, initialPassword }: RoomConnectionProps) {
           participants={state.participants}
           reconnecting={state.reconnecting}
           token={token}
+          socket={state.socket}
+          joinedAt={state.joinedAt}
         />
       );
 
@@ -198,13 +207,27 @@ interface RoomViewProps {
   participants: Participant[];
   reconnecting: boolean;
   token: string;
+  socket: AppSocket;
+  joinedAt: number;
 }
 
-function RoomView({ room, self, participants, reconnecting, token }: RoomViewProps) {
+function RoomView({ room, self, participants, reconnecting, token, socket, joinedAt }: RoomViewProps) {
   const navigate = useNavigate();
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [ending, setEnding] = useState(false);
   const isHost = self.role === 'HOST';
+
+  const media = useMediaSession(socket, joinedAt);
+  const share = useScreenShare(media);
+  const producers = useRoomProducers(socket, media);
+
+  const selfSharing = share.state.status === 'connecting' || share.state.status === 'live';
+  const screenProducer = producers.find((p) => p.source === 'screen' && p.kind === 'video') ?? null;
+  const otherSharer = screenProducer
+    ? (participants.find((p) => p.userId === screenProducer.userId) ?? null)
+    : null;
+  const sharingUserId = selfSharing ? self.userId : (screenProducer?.userId ?? null);
+  const isLive = share.state.status === 'live' || otherSharer !== null;
 
   async function copyLink() {
     try {
@@ -239,8 +262,17 @@ function RoomView({ room, self, participants, reconnecting, token }: RoomViewPro
           {room.hasPassword && (
             <Lock size={14} className="shrink-0 text-text-muted" aria-label="Sala protegida por senha" />
           )}
+          {isLive && <LiveBadge />}
         </div>
         <AvatarGroup participants={participants} />
+        <ShareScreenButton
+          state={share.state}
+          supported={share.supported}
+          otherSharerName={otherSharer?.displayName ?? null}
+          disabled={reconnecting}
+          onStart={share.start}
+          onStop={share.stop}
+        />
         <Button variant="secondary" size="sm" onClick={copyLink}>
           <Link2 size={15} aria-hidden />
           <span className="hidden sm:inline">Convidar</span>
@@ -268,15 +300,39 @@ function RoomView({ room, self, participants, reconnecting, token }: RoomViewPro
 
       <div className="flex min-h-0 flex-1">
         <main className="flex min-w-0 flex-1 flex-col p-4 sm:p-6">
-          <div className="flex flex-1 items-center justify-center rounded-lg border border-border bg-black">
-            <StateMessage
-              icon={MonitorOff}
-              title="Nenhuma transmissão ativa."
-              description="Quando alguém compartilhar a tela, ela aparece aqui."
-            />
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-border bg-black">
+            {share.state.status === 'connecting' || share.state.status === 'live' ? (
+              <ScreenPreview
+                stream={share.state.stream}
+                quality={share.state.status === 'live' ? share.state.quality : null}
+                connecting={share.state.status === 'connecting'}
+              />
+            ) : otherSharer ? (
+              <StateMessage icon={ScreenShare} title={`${otherSharer.displayName} está compartilhando a tela`} />
+            ) : (
+              <StateMessage
+                icon={MonitorOff}
+                title="Nenhuma transmissão ativa."
+                description="Quando alguém compartilhar a tela, ela aparece aqui."
+                actions={
+                  share.supported && (
+                    <Button
+                      variant="secondary"
+                      onClick={share.start}
+                      disabled={reconnecting}
+                      loading={share.state.status === 'starting'}
+                      loadingText="Iniciando…"
+                    >
+                      <ScreenShare size={16} aria-hidden />
+                      Compartilhar minha tela
+                    </Button>
+                  )
+                }
+              />
+            )}
           </div>
         </main>
-        <ParticipantsPanel participants={participants} selfId={self.userId} />
+        <ParticipantsPanel participants={participants} selfId={self.userId} sharingUserId={sharingUserId} />
       </div>
 
       <EndRoomModal open={confirmEnd} ending={ending} onCancel={() => setConfirmEnd(false)} onConfirm={endRoom} />

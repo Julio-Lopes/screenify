@@ -4,9 +4,16 @@ import { Avatar } from '../Avatar';
 interface ParticipantsPanelProps {
   participants: Participant[];
   selfId: string;
+  /** Quem está compartilhando a tela agora, se alguém */
+  sharingUserId: string | null;
 }
 
-export function ParticipantsPanel({ participants, selfId }: ParticipantsPanelProps) {
+function statusLabel(participant: Participant, sharingUserId: string | null): string {
+  if (participant.userId === sharingUserId) return 'Compartilhando a tela';
+  return participant.role === 'HOST' ? 'Criou a sala' : 'Online';
+}
+
+export function ParticipantsPanel({ participants, selfId, sharingUserId }: ParticipantsPanelProps) {
   // Você primeiro, depois quem criou a sala, depois por nome
   const sorted = [...participants].sort((a, b) => {
     if (a.userId === selfId) return -1;
@@ -30,8 +37,12 @@ export function ParticipantsPanel({ participants, selfId }: ParticipantsPanelPro
                 {p.displayName}
                 {p.userId === selfId && <span className="font-normal text-text-muted"> (você)</span>}
               </span>
-              <span className="text-caption text-text-muted">
-                {p.role === 'HOST' ? 'Criou a sala' : 'Online'}
+              <span
+                className={
+                  p.userId === sharingUserId ? 'text-caption text-primary-hover' : 'text-caption text-text-muted'
+                }
+              >
+                {statusLabel(p, sharingUserId)}
               </span>
             </div>
           </li>

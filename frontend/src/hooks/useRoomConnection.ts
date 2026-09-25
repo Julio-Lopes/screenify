@@ -14,6 +14,9 @@ export type ConnectionState =
       self: Participant;
       participants: Participant[];
       reconnecting: boolean;
+      socket: AppSocket;
+      /** Muda a cada entrada bem-sucedida (inclusive depois de reconectar): marca uma nova sessão de mídia */
+      joinedAt: number;
     }
   | { status: 'ended'; reason: 'closed' | 'replaced' | 'not-found' }
   | { status: 'error'; message: string };
@@ -43,6 +46,8 @@ export function useRoomConnection(code: string, token: string, initialPassword?:
           self: result.self,
           participants: result.participants,
           reconnecting: false,
+          socket,
+          joinedAt: Date.now(),
         });
         return;
       }

@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 interface StateMessageProps {
   icon: LucideIcon;
   title: string;
-  description: string;
+  description?: string;
   /** Código técnico exibido em mono para facilitar suporte */
   code?: string;
   actions?: ReactNode;
@@ -26,7 +26,7 @@ export function StateMessage({ icon: Icon, title, description, code, actions, to
       <div className="flex flex-col gap-1.5">
         {code && <span className="font-mono text-caption text-text-muted">{code}</span>}
         <h1 className="text-h4 font-semibold">{title}</h1>
-        <p className="text-body-sm text-text-secondary">{description}</p>
+        {description && <p className="text-body-sm text-text-secondary">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap justify-center gap-2">{actions}</div>}
     </div>

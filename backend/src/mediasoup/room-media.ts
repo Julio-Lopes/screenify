@@ -144,6 +144,19 @@ export class RoomMedia {
       logger.info({ roomId: this.roomId, userId, producerId: producer.id }, '[MEDIASOUP] Producer closed');
     });
 
+    // O score sobe acima de zero quando os pacotes de vídeo começam a chegar de fato
+    let receiving = false;
+    producer.on('score', (scores) => {
+      const hasMedia = scores.some((entry) => entry.score > 0);
+      if (hasMedia !== receiving) {
+        receiving = hasMedia;
+        logger.info(
+          { roomId: this.roomId, userId, producerId: producer.id },
+          hasMedia ? '[MEDIASOUP] Producer receiving media' : '[MEDIASOUP] Producer stopped receiving media',
+        );
+      }
+    });
+
     logger.info({ roomId: this.roomId, userId, kind, source }, '[MEDIASOUP] Producer created');
     return this.toProducerInfo(producer);
   }
