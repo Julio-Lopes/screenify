@@ -77,11 +77,23 @@
 
   --animate-modal: sf-modal 200ms var(--ease-standard);
   --animate-toast: sf-toast 200ms var(--ease-standard);
+  --animate-enter: sf-enter 220ms var(--ease-standard);
 
   @keyframes sf-modal {
     from {
       opacity: 0;
       transform: translateY(8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes sf-enter {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
     }
     to {
       opacity: 1;

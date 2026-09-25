@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { getAuthUser } from '../middleware/authenticate.js';
 import { createRoomSchema, roomCodeParamsSchema } from '../schemas/room.schemas.js';
 import { createRoom, deleteRoom, findRoomByCode } from '../services/room.service.js';
+import { notifyRoomDeleted } from '../websocket/socket-server.js';
 
 export async function createRoomHandler(req: Request, res: Response<RoomResponse>): Promise<void> {
   const user = getAuthUser(req);
@@ -22,7 +23,8 @@ export async function getRoomHandler(req: Request, res: Response<RoomResponse>):
 export async function deleteRoomHandler(req: Request, res: Response): Promise<void> {
   const user = getAuthUser(req);
   const { code } = roomCodeParamsSchema.parse(req.params);
-  await deleteRoom(code, user.id);
+  const roomId = await deleteRoom(code, user.id);
+  notifyRoomDeleted(roomId);
 
   res.status(204).end();
 }

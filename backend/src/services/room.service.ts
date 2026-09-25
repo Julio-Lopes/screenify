@@ -81,7 +81,22 @@ export async function findRoomByCode(code: string): Promise<RoomSummary> {
   return toSummary(room);
 }
 
-export async function deleteRoom(code: string, requesterId: string): Promise<void> {
+export interface JoinableRoom {
+  id: string;
+  code: string;
+  hostId: string | null;
+  passwordHash: string | null;
+}
+
+export async function findJoinableRoom(code: string): Promise<JoinableRoom | null> {
+  return prisma.room.findUnique({
+    where: { code },
+    select: { id: true, code: true, hostId: true, passwordHash: true },
+  });
+}
+
+/** Exclui a sala e devolve o id dela, para quem chamou avisar os participantes conectados */
+export async function deleteRoom(code: string, requesterId: string): Promise<string> {
   const room = await prisma.room.findUnique({
     where: { code },
     select: { id: true, hostId: true },
@@ -97,4 +112,6 @@ export async function deleteRoom(code: string, requesterId: string): Promise<voi
 
   await prisma.room.delete({ where: { id: room.id } });
   logger.info({ code }, '[ROOM] Deleted by host');
+
+  return room.id;
 }

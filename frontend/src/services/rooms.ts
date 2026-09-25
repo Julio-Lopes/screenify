@@ -10,3 +10,7 @@ export async function getRoom(code: string, signal?: AbortSignal): Promise<RoomS
   const { room } = await apiRequest<RoomResponse>(`/rooms/${encodeURIComponent(code)}`, { signal });
   return room;
 }
+
+export async function deleteRoom(code: string, token: string): Promise<void> {
+  await apiRequest<void>(`/rooms/${encodeURIComponent(code)}`, { method: 'DELETE', token });
+}
