@@ -9,6 +9,7 @@ import { EndRoomModal } from '../components/room/EndRoomModal';
 import { JoinForm, type JoinFormValues } from '../components/room/JoinForm';
 import { LiveBadge } from '../components/room/LiveBadge';
 import { ParticipantsPanel } from '../components/room/ParticipantsPanel';
+import { RemoteScreen } from '../components/room/RemoteScreen';
 import { RoomShell } from '../components/room/RoomShell';
 import { ScreenPreview } from '../components/room/ScreenPreview';
 import { ShareScreenButton } from '../components/room/ShareScreenButton';
@@ -18,6 +19,7 @@ import { useRoom } from '../hooks/useRoom';
 import { useRoomConnection } from '../hooks/useRoomConnection';
 import { useRoomProducers } from '../hooks/useRoomProducers';
 import { useScreenShare } from '../hooks/useScreenShare';
+import { useScreenView } from '../hooks/useScreenView';
 import { ApiError } from '../services/api';
 import { deleteRoom } from '../services/rooms';
 import type { AppSocket } from '../services/socket';
@@ -222,12 +224,14 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
   const producers = useRoomProducers(socket, media);
 
   const selfSharing = share.state.status === 'connecting' || share.state.status === 'live';
-  const screenProducer = producers.find((p) => p.source === 'screen' && p.kind === 'video') ?? null;
+  const screenProducer =
+    producers.find((p) => p.source === 'screen' && p.kind === 'video' && p.userId !== self.userId) ?? null;
   const otherSharer = screenProducer
     ? (participants.find((p) => p.userId === screenProducer.userId) ?? null)
     : null;
   const sharingUserId = selfSharing ? self.userId : (screenProducer?.userId ?? null);
   const isLive = share.state.status === 'live' || otherSharer !== null;
+  const view = useScreenView(media, screenProducer?.producerId ?? null);
 
   async function copyLink() {
     try {
@@ -307,8 +311,23 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
                 quality={share.state.status === 'live' ? share.state.quality : null}
                 connecting={share.state.status === 'connecting'}
               />
-            ) : otherSharer ? (
-              <StateMessage icon={ScreenShare} title={`${otherSharer.displayName} está compartilhando a tela`} />
+                        ) : otherSharer ? (
+              view.state.status === 'playing' ? (
+                <RemoteScreen stream={view.state.stream} sharerName={otherSharer.displayName} />
+              ) : view.state.status === 'error' ? (
+                <StateMessage
+                  icon={WifiOff}
+                  tone="error"
+                  title="Não foi possível exibir a transmissão"
+                  description={view.state.message}
+                  actions={<Button onClick={view.retry}>Tentar de novo</Button>}
+                />
+              ) : (
+                <div role="status" className="flex items-center gap-2.5 text-body-sm text-text-secondary">
+                  <LoaderCircle size={16} className="animate-spin" aria-hidden />
+                  Conectando à transmissão de {otherSharer.displayName}…
+                </div>
+              )
             ) : (
               <StateMessage
                 icon={MonitorOff}

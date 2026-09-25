@@ -1,5 +1,7 @@
 import type {
   ConnectTransportPayload,
+  ConsumePayload,
+  ConsumerInfo,
   MediaErrorCode,
   MediaResult,
   ProducePayload,
@@ -57,6 +59,14 @@ export class MediaSignaling {
 
   async closeProducer(producerId: string): Promise<void> {
     await this.request(() => this.withTimeout().emitWithAck('media:close-producer', { producerId }));
+  }
+
+  consume(payload: ConsumePayload): Promise<ConsumerInfo> {
+    return this.request(() => this.withTimeout().emitWithAck('media:consume', payload));
+  }
+
+  async resumeConsumer(consumerId: string): Promise<void> {
+    await this.request(() => this.withTimeout().emitWithAck('media:resume-consumer', { consumerId }));
   }
 
   listProducers(): Promise<ProducerInfo[]> {
