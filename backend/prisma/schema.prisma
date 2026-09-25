@@ -15,10 +15,11 @@ enum ParticipantRole {
 }
 
 model User {
-  id          String   @id @default(uuid()) @db.Uuid
-  displayName String   @map("display_name") @db.VarChar(40)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(uuid()) @db.Uuid
+  displayName      String   @map("display_name") @db.VarChar(40)
+  sessionTokenHash String?  @unique @map("session_token_hash") @db.Char(64)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   hostedRooms    Room[]            @relation("RoomHost")
   participations RoomParticipant[]
