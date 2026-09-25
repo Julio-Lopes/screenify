@@ -1,0 +1,16 @@
+{
+  "name": "screenify",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev -w @screenify/backend",
+    "dev:frontend": "npm run dev -w @screenify/frontend",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build": "npm run build -w @screenify/backend && npm run build -w @screenify/frontend"
+  }
+}

@@ -15,7 +15,15 @@ export const roomPasswordSchema = z
   .max(64, 'A senha pode ter no máximo 64 caracteres')
   .regex(/^[^\p{C}]+$/u, 'A senha contém caracteres inválidos');
 
+export const roomNameSchema = z
+  .string()
+  .trim()
+  .min(1, 'O nome da sala não pode ficar vazio')
+  .max(60, 'O nome da sala pode ter no máximo 60 caracteres')
+  .regex(/^[^\p{C}]+$/u, 'O nome da sala contém caracteres inválidos');
+
 export const createRoomSchema = z.object({
+  name: roomNameSchema.optional(),
   password: roomPasswordSchema.optional(),
 });
 

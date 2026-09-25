@@ -1,6 +1,7 @@
+import type { ApiErrorBody } from '@screenify/shared';
 import type { Request, Response } from 'express';
 
-export function notFound(req: Request, res: Response): void {
+export function notFound(req: Request, res: Response<ApiErrorBody>): void {
   res.status(404).json({
     error: 'NOT_FOUND',
     message: `Rota ${req.method} ${req.path} não encontrada`,

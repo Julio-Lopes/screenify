@@ -1,15 +1,11 @@
+import type { GuestSessionResponse, PublicUser } from '@screenify/shared';
 import { prisma } from '../database/prisma.js';
 import type { CreateGuestInput } from '../schemas/user.schemas.js';
 import { generateSessionToken, hashSessionToken } from '../utils/session-token.js';
 
-export interface AuthUser {
-  id: string;
-  displayName: string;
-}
+export type AuthUser = PublicUser;
 
-export async function createGuest(
-  input: CreateGuestInput,
-): Promise<{ user: AuthUser; token: string }> {
+export async function createGuest(input: CreateGuestInput): Promise<GuestSessionResponse> {
   const token = generateSessionToken();
 
   const user = await prisma.user.create({

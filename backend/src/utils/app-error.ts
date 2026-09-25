@@ -1,7 +1,9 @@
+import type { ApiErrorCode } from '@screenify/shared';
+
 export class AppError extends Error {
   constructor(
     public readonly statusCode: number,
-    public readonly code: string,
+    public readonly code: ApiErrorCode,
     message: string,
   ) {
     super(message);

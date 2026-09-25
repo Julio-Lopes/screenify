@@ -1,3 +1,4 @@
+import type { ApiErrorBody } from '@screenify/shared';
 import type { NextFunction, Request, Response } from 'express';
 import { ZodError, z } from 'zod';
 import { AppError } from '../utils/app-error.js';
@@ -6,7 +7,7 @@ import { logger } from '../utils/logger.js';
 export function errorHandler(
   error: unknown,
   req: Request,
-  res: Response,
+  res: Response<ApiErrorBody>,
   _next: NextFunction,
 ): void {
   if (res.headersSent) {
