@@ -21,3 +21,19 @@ export interface Stroke {
   opacity: number;
   points: Point[];
 }
+
+/** Começo de um traço: o servidor completa com o userId de quem desenhou */
+export type StartStrokePayload = Omit<Stroke, 'userId'>;
+
+export interface AppendStrokePayload {
+  id: string;
+  points: Point[];
+}
+
+/** Estado das anotações para quem entra com desenhos já feitos */
+export interface AnnotationSnapshot {
+  /** Traços concluídos, na ordem em que terminaram */
+  strokes: Stroke[];
+  /** Traços que alguém ainda está desenhando neste momento */
+  active: Stroke[];
+}

@@ -236,7 +236,11 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
   const isLive = share.state.status === 'live' || otherSharer !== null;
   const view = useScreenView(media, screenProducer);
   // Os desenhos pertencem à transmissão atual: outra transmissão começa com a tela limpa
-  const annotations = useAnnotations(self, selfSharing ? `self:${joinedAt}` : (screenProducer?.producerId ?? null));
+  const annotations = useAnnotations(
+    self,
+    socket,
+    selfSharing ? `self:${joinedAt}` : (screenProducer?.producerId ?? null),
+  );
   // Badges do cabeçalho: a qualidade escolhida por quem transmite (estável). A real aparece no player
   const sharePreset = getSharePreset(share.preset);
   const liveTarget =

@@ -1,4 +1,5 @@
 import type { JoinRoomErrorCode, JoinRoomResult, Participant } from '@screenify/shared';
+import { roomAnnotations } from '../annotations/room-annotations.js';
 import type { MediaRegistry } from '../mediasoup/media-registry.js';
 import { joinRoomSchema } from '../schemas/room.schemas.js';
 import { closeParticipation, hasJoinedBefore, openParticipation } from '../services/participant.service.js';
@@ -112,6 +113,7 @@ async function joinRoom(
       oldSocket.emit('room:session-replaced');
     }
     // A mídia da aba antiga (transports, transmissão) é encerrada; a aba nova cria a dela
+    finishStrokesOf(io, room.id, user.id);
     (await media.get(room.id))?.removePeer(user.id);
   }
 
@@ -156,10 +158,12 @@ async function leaveCurrentRoom(io: AppServer, socket: AppSocket, media: MediaRe
   // Falso quando outra aba já assumiu o lugar: nada a anunciar
   if (!roomPresence.remove(roomId, userId, socket.id) || shuttingDown) return;
 
-  // Encerra a mídia da pessoa; se a sala esvaziou, libera o Router inteiro
+  // Encerra a mídia e os traços em andamento da pessoa; se a sala esvaziou, libera tudo
+  finishStrokesOf(io, roomId, userId);
   (await media.get(roomId))?.removePeer(userId);
   if (roomPresence.size(roomId) === 0) {
     await media.close(roomId);
+    roomAnnotations.deleteRoom(roomId);
   }
 
   await closeParticipation(roomId, userId, roomPresence.size(roomId) === 0);
@@ -178,4 +182,12 @@ export async function closeRoomForEveryone(io: AppServer, media: MediaRegistry, 
     void socket.leave(roomChannel(roomId));
   }
   await media.close(roomId);
+  roomAnnotations.deleteRoom(roomId);
+}
+
+/** Quem sai no meio de um traço deixa o que já desenhou: o traço é concluído para todos */
+function finishStrokesOf(io: AppServer, roomId: string, userId: string): void {
+  for (const id of roomAnnotations.endAllOf(roomId, userId)) {
+    io.to(roomChannel(roomId)).emit('drawing:ended', { id });
+  }
 }

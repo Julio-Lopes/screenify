@@ -21,6 +21,7 @@ import {
 } from '../schemas/media.schemas.js';
 import { logger } from '../utils/logger.js';
 import { roomChannel, type AppServer, type AppSocket } from './types.js';
+import { roomAnnotations } from '../annotations/room-annotations.js';
 
 type Ack<T> = (result: MediaResult<T>) => void;
 
@@ -63,7 +64,13 @@ export function registerMediaHandlers(io: AppServer, socket: AppSocket, media: M
       throw new MediaError('NOT_IN_ROOM', 'Entre na sala antes de usar mídia');
     }
     return media.getOrCreate(roomId, {
-      onProducerClosed: (producerId) => io.to(roomChannel(roomId)).emit('media:producer-closed', { producerId }),
+      onProducerClosed: (producerId) => {
+        io.to(roomChannel(roomId)).emit('media:producer-closed', { producerId });
+        // Os desenhos marcavam essa tela: com ela fora do ar, saem para todo mundo
+        if (roomAnnotations.endSurface(roomId, producerId)) {
+          io.to(roomChannel(roomId)).emit('drawing:cleared');
+        }
+      },
     });
   }
 
@@ -100,6 +107,10 @@ export function registerMediaHandlers(io: AppServer, socket: AppSocket, media: M
       );
 
       if (socket.data.roomId) {
+        // A tela nova começa sem desenhos; é nela que as anotações passam a ser feitas
+        if (source === 'screen' && kind === 'video') {
+          roomAnnotations.startSurface(socket.data.roomId, producer.producerId);
+        }
         socket.to(roomChannel(socket.data.roomId)).emit('media:producer-added', producer);
       }
       return { producerId: producer.producerId };

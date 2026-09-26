@@ -1,3 +1,4 @@
+import type { AnnotationSnapshot, AppendStrokePayload, StartStrokePayload, Stroke } from './annotation.js';
 import type {
   ConnectTransportPayload,
   ConsumePayload,
@@ -53,6 +54,11 @@ export interface ServerToClientEvents {
   'media:producer-added': (producer: ProducerInfo) => void;
   'media:producer-closed': (payload: { producerId: string }) => void;
   'media:producer-quality': (payload: { producerId: string; quality: VideoQuality; target: QualityTarget }) => void;
+  'drawing:started': (stroke: Stroke) => void;
+  'drawing:appended': (payload: AppendStrokePayload) => void;
+  'drawing:ended': (payload: { id: string }) => void;
+  /** A tela anotada mudou ou acabou: todos os desenhos saem */
+  'drawing:cleared': () => void;
 }
 
 /** Eventos que o navegador envia para o servidor */
@@ -72,6 +78,11 @@ export interface ClientToServerEvents {
     payload: UpdateProducerQualityPayload,
     ack: (result: MediaResult<null>) => void,
   ) => void;
+  // Eventos de desenho não têm ack: são muitos e rápidos, e a ordem já é garantida pelo Socket.IO
+  'drawing:start': (payload: StartStrokePayload) => void;
+  'drawing:append': (payload: AppendStrokePayload) => void;
+  'drawing:end': (payload: { id: string }) => void;
+  'drawing:sync': (ack: (snapshot: AnnotationSnapshot) => void) => void;
 }
 
 /** Mensagem do erro de conexão quando o token de sessão é inválido ou ausente */

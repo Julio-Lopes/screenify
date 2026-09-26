@@ -1,5 +1,5 @@
 import type { Point, Stroke } from '@screenify/shared';
-import { useEffect, useRef, useState, type PointerEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent, type RefObject } from 'react';
 import { cn } from '../utils/cn';
 import { pixelDistance, toNormalized, videoContentRect, type Rect } from './geometry';
 import { drawStroke, fitCanvas } from './renderer';
@@ -16,10 +16,12 @@ const MIN_POINT_DISTANCE_PX = 1.5;
 /**
  * Camada de desenho sobre o vídeo. São dois canvas empilhados, cobrindo exatamente a área
  * da imagem (sem as faixas pretas): um com os traços prontos, redesenhado só quando eles mudam,
- * e outro com o traço em andamento, redesenhado a cada movimento sem tocar nos prontos.
+ * e outro com os traços em andamento (o seu e os de quem está desenhando agora),
+ * redesenhado a cada movimento sem tocar nos prontos.
  */
 export function AnnotationLayer({ videoRef, annotations }: AnnotationLayerProps) {
-  const { strokes, enabled, style, userId, addStroke } = annotations;
+  const { strokes, enabled, style, userId, beginStroke, extendStroke, finishStroke, getRemoteActive, subscribeRemote } =
+    annotations;
   const committedRef = useRef<HTMLCanvasElement>(null);
   const liveRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef<Stroke | null>(null);
@@ -72,31 +74,40 @@ export function AnnotationLayer({ videoRef, annotations }: AnnotationLayerProps)
     if (liveRef.current && rect) fitCanvas(liveRef.current, rect);
   }, [rect]);
 
-  useEffect(
-    () => () => {
-      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
-    },
-    [],
-  );
-
-  function renderLive() {
+  // Canvas de cima: o traço que você está fazendo e os que outras pessoas estão fazendo agora
+  const renderLive = useCallback(() => {
     frameRef.current = null;
     const canvas = liveRef.current;
     if (!canvas || !rect) return;
     const ctx = fitCanvas(canvas, rect);
-    if (ctx && drawingRef.current) drawStroke(ctx, drawingRef.current, rect);
-  }
+    if (!ctx) return;
+    for (const stroke of getRemoteActive()) drawStroke(ctx, stroke, rect);
+    if (drawingRef.current) drawStroke(ctx, drawingRef.current, rect);
+  }, [rect, getRemoteActive]);
 
-  /** No máximo um redesenho por quadro da tela, por mais eventos de mouse que cheguem */
-  function scheduleRender() {
+  /** No máximo um redesenho por quadro da tela, por mais eventos que cheguem */
+  const scheduleRender = useCallback(() => {
     frameRef.current ??= requestAnimationFrame(renderLive);
-  }
+  }, [renderLive]);
 
-  function addPoint(stroke: Stroke, point: Point) {
+  // Pontos de outras pessoas chegando pela rede também pedem redesenho
+  useEffect(() => subscribeRemote(scheduleRender), [subscribeRemote, scheduleRender]);
+
+  useEffect(
+    () => () => {
+      // Zerar a ref é essencial: um id antigo deixado aqui faria o ??= acima nunca mais agendar nada
+      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    },
+    [],
+  );
+
+  /** Acrescenta o ponto se ele mudar o desenho; devolve se entrou */
+  function addPoint(stroke: Stroke, point: Point): boolean {
     const last = stroke.points.at(-1);
-    if (!last || !rect || pixelDistance(last, point, rect) >= MIN_POINT_DISTANCE_PX) {
-      stroke.points.push(point);
-    }
+    if (last && rect && pixelDistance(last, point, rect) < MIN_POINT_DISTANCE_PX) return false;
+    stroke.points.push(point);
+    return true;
   }
 
   function onPointerDown(event: PointerEvent<HTMLCanvasElement>) {
@@ -104,7 +115,7 @@ export function AnnotationLayer({ videoRef, annotations }: AnnotationLayerProps)
     event.currentTarget.setPointerCapture(event.pointerId);
 
     const bounds = event.currentTarget.getBoundingClientRect();
-    drawingRef.current = {
+    const stroke: Stroke = {
       id: crypto.randomUUID(),
       userId,
       tool: 'pen',
@@ -113,6 +124,8 @@ export function AnnotationLayer({ videoRef, annotations }: AnnotationLayerProps)
       opacity: style.opacity,
       points: [toNormalized(event.clientX, event.clientY, bounds)],
     };
+    drawingRef.current = stroke;
+    beginStroke({ ...stroke, points: [...stroke.points] });
     scheduleRender();
   }
 
@@ -123,16 +136,19 @@ export function AnnotationLayer({ videoRef, annotations }: AnnotationLayerProps)
     const bounds = event.currentTarget.getBoundingClientRect();
     // Eventos agrupados pelo navegador entre dois quadros: sem eles, traços rápidos saem quebrados
     const events = event.nativeEvent.getCoalescedEvents?.() ?? [event.nativeEvent];
+    const added: Point[] = [];
     for (const e of events) {
-      addPoint(stroke, toNormalized(e.clientX, e.clientY, bounds));
+      const point = toNormalized(e.clientX, e.clientY, bounds);
+      if (addPoint(stroke, point)) added.push(point);
     }
+    extendStroke(stroke.id, added);
     scheduleRender();
   }
 
-  function finishStroke() {
+  function onPointerUp() {
     const stroke = drawingRef.current;
     drawingRef.current = null;
-    if (stroke && stroke.points.length > 0) addStroke(stroke);
+    if (stroke) finishStroke(stroke);
     scheduleRender();
   }
 
@@ -149,8 +165,8 @@ export function AnnotationLayer({ videoRef, annotations }: AnnotationLayerProps)
         className={cn('absolute touch-none', enabled ? 'cursor-crosshair' : 'pointer-events-none')}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        onPointerUp={finishStroke}
-        onPointerCancel={finishStroke}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
         aria-label={enabled ? 'Área de anotação: arraste para desenhar sobre a tela' : undefined}
         aria-hidden={!enabled}
       />
