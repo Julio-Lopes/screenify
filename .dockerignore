@@ -1,0 +1,19 @@
+# Instalado e gerado dentro da imagem, nunca copiado da máquina
+**/node_modules
+**/dist
+backend/src/generated
+
+# Segredos e configurações locais
+**/.env
+**/.env.*
+!**/.env.example
+
+# Nada disso é necessário para construir o backend
+.git
+**/*.log
+**/coverage
+backend/tests
+
+# Do frontend, só o package.json: o lockfile do monorepo faz referência a ele
+frontend
+!frontend/package.json
