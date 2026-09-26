@@ -1,5 +1,8 @@
 import { LoaderCircle } from 'lucide-react';
 import { useEffect, useRef } from 'react';
+import { AnnotateToggle } from '../../annotation/AnnotateToggle';
+import { AnnotationLayer } from '../../annotation/AnnotationLayer';
+import type { Annotations } from '../../annotation/useAnnotations';
 import {
   formatMbps,
   getSharePreset,
@@ -16,6 +19,7 @@ interface ScreenPreviewProps {
   connecting: boolean;
   preset: SharePresetId;
   onPresetChange: (preset: SharePresetId) => void;
+  annotations: Annotations;
 }
 
 const PRESET_OPTIONS = SHARE_PRESETS.map((preset) => ({
@@ -25,7 +29,14 @@ const PRESET_OPTIONS = SHARE_PRESETS.map((preset) => ({
 }));
 
 /** O que você está transmitindo, exibido para você mesmo */
-export function ScreenPreview({ stream, quality, connecting, preset, onPresetChange }: ScreenPreviewProps) {
+export function ScreenPreview({
+  stream,
+  quality,
+  connecting,
+  preset,
+  onPresetChange,
+  annotations,
+}: ScreenPreviewProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -36,6 +47,7 @@ export function ScreenPreview({ stream, quality, connecting, preset, onPresetCha
   return (
     <div className="relative flex h-full w-full items-center justify-center">
       <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-contain" />
+      <AnnotationLayer videoRef={videoRef} annotations={annotations} />
 
       <div className="absolute right-3 bottom-3 left-3 flex items-end justify-between gap-2">
         <div className="flex items-center gap-2 rounded-md bg-background/80 px-2.5 py-1.5 text-caption backdrop-blur">
@@ -56,13 +68,16 @@ export function ScreenPreview({ stream, quality, connecting, preset, onPresetCha
           )}
         </div>
 
-        <QualityMenu
-          options={PRESET_OPTIONS}
-          selected={preset}
-          onSelect={onPresetChange}
-          triggerLabel={presetLabel(getSharePreset(preset))}
-          note="Reduza a qualidade se a conexão ficar instável."
-        />
+        <div className="flex items-center gap-2">
+          <AnnotateToggle enabled={annotations.enabled} onToggle={annotations.toggle} />
+          <QualityMenu
+            options={PRESET_OPTIONS}
+            selected={preset}
+            onSelect={onPresetChange}
+            triggerLabel={presetLabel(getSharePreset(preset))}
+            note="Reduza a qualidade se a conexão ficar instável."
+          />
+        </div>
       </div>
     </div>
   );

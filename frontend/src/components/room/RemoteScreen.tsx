@@ -1,5 +1,8 @@
 import { LoaderCircle, Maximize, Minimize, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { AnnotateToggle } from '../../annotation/AnnotateToggle';
+import { AnnotationLayer } from '../../annotation/AnnotationLayer';
+import type { Annotations } from '../../annotation/useAnnotations';
 import type { LayerOption, SpatialLayer } from '../../media/quality-presets';
 import { QualityMenu } from '../ui/QualityMenu';
 
@@ -12,6 +15,7 @@ interface RemoteScreenProps {
   /** Altura que a resolução escolhida tem de verdade; chegando bem menos, a conexão está limitando */
   expectedHeight: number | null;
   onLayerChange: (layer: SpatialLayer) => void;
+  annotations: Annotations;
 }
 
 /** A tela de quem está transmitindo, como chega para quem assiste */
@@ -22,6 +26,7 @@ export function RemoteScreen({
   selectedLayer,
   expectedHeight,
   onLayerChange,
+  annotations,
 }: RemoteScreenProps) {
   // O menu trabalha com ids em texto; a camada é um número
   const options = layers.map((option) => ({ id: String(option.layer), label: option.label }));
@@ -83,6 +88,7 @@ export function RemoteScreen({
         className="h-full w-full object-contain"
         aria-label={`Tela de ${sharerName}`}
       />
+      <AnnotationLayer videoRef={videoRef} annotations={annotations} />
 
       {!firstFrame && (
         <div role="status" className="absolute inset-0 flex items-center justify-center gap-2.5 text-body-sm text-text-secondary">
@@ -111,6 +117,7 @@ export function RemoteScreen({
         </div>
 
         <div className="flex items-center gap-2">
+          <AnnotateToggle enabled={annotations.enabled} onToggle={annotations.toggle} />
           {options.length > 1 && selectedLabel && (
             <QualityMenu
               options={options}

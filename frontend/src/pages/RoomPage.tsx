@@ -2,6 +2,7 @@ import type { Participant, RoomSummary } from '@screenify/shared';
 import { Link2, LoaderCircle, Lock, LogOut, MonitorOff, ScreenShare, SearchX, Unplug, WifiOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
+import { useAnnotations } from '../annotation/useAnnotations';
 import { Logo } from '../components/Logo';
 import { StateMessage } from '../components/StateMessage';
 import { AvatarGroup } from '../components/room/AvatarGroup';
@@ -234,6 +235,8 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
   const sharingUserId = selfSharing ? self.userId : (screenProducer?.userId ?? null);
   const isLive = share.state.status === 'live' || otherSharer !== null;
   const view = useScreenView(media, screenProducer);
+  // Os desenhos pertencem à transmissão atual: outra transmissão começa com a tela limpa
+  const annotations = useAnnotations(self, selfSharing ? `self:${joinedAt}` : (screenProducer?.producerId ?? null));
   // Badges do cabeçalho: a qualidade escolhida por quem transmite (estável). A real aparece no player
   const sharePreset = getSharePreset(share.preset);
   const liveTarget =
@@ -272,7 +275,9 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
         <span className="hidden h-5 w-px bg-border sm:block" aria-hidden />
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <h1 className="truncate text-body-sm font-semibold">{room.name}</h1>
-          <span className="hidden font-mono text-caption text-text-muted sm:inline">{room.code}</span>
+          <span className="hidden shrink-0 font-mono text-caption whitespace-nowrap text-text-muted sm:inline">
+            {room.code}
+          </span>
           {room.hasPassword && (
             <Lock size={14} className="shrink-0 text-text-muted" aria-label="Sala protegida por senha" />
           )}
@@ -323,6 +328,7 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
                 connecting={share.state.status === 'connecting'}
                 preset={share.preset}
                 onPresetChange={share.setPreset}
+                annotations={annotations}
               />
                         ) : otherSharer ? (
               view.state.status === 'playing' ? (
@@ -333,6 +339,7 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
                   selectedLayer={view.selectedLayer}
                   expectedHeight={view.expectedHeight}
                   onLayerChange={view.setLayer}
+                  annotations={annotations}
                 />
               ) : view.state.status === 'error' ? (
                 <StateMessage

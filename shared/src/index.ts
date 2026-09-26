@@ -33,3 +33,4 @@ export type {
 } from './types/realtime.js';
 export type { CreateRoomRequest, RoomResponse, RoomSummary } from './types/room.js';
 export type { CreateGuestRequest, GuestSessionResponse, PublicUser } from './types/user.js';
+export type { Point, Stroke, StrokeTool } from './types/annotation.js';
