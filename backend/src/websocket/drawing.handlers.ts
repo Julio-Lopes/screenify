@@ -1,6 +1,13 @@
 import { roomAnnotations } from '../annotations/room-annotations.js';
-import { appendStrokeSchema, endStrokeSchema, startStrokeSchema } from '../schemas/drawing.schemas.js';
+import {
+  appendStrokeSchema,
+  endStrokeSchema,
+  removeStrokesSchema,
+  restoreStrokesSchema,
+  startStrokeSchema,
+} from '../schemas/drawing.schemas.js';
 import { logger } from '../utils/logger.js';
+import { roomPresence } from './room-presence.js';
 import { roomChannel, type AppSocket } from './types.js';
 
 /**
@@ -41,6 +48,30 @@ export function registerDrawingHandlers(socket: AppSocket): void {
 
     if (roomAnnotations.end(roomId, userId, parsed.data.id)) {
       socket.to(roomChannel(roomId)).emit('drawing:ended', { id: parsed.data.id });
+    }
+  });
+
+  const isHost = (roomId: string) => roomPresence.getEntry(roomId, userId)?.participant.role === 'HOST';
+
+  socket.on('drawing:remove', (payload) => {
+    const roomId = socket.data.roomId;
+    const parsed = removeStrokesSchema.safeParse(payload);
+    if (!roomId || !parsed.success) return;
+
+    const ids = roomAnnotations.remove(roomId, userId, isHost(roomId), parsed.data.ids);
+    if (ids.length > 0) {
+      socket.to(roomChannel(roomId)).emit('drawing:removed', { ids });
+    }
+  });
+
+  socket.on('drawing:restore', (payload) => {
+    const roomId = socket.data.roomId;
+    const parsed = restoreStrokesSchema.safeParse(payload);
+    if (!roomId || !parsed.success) return;
+
+    const strokes = roomAnnotations.restore(roomId, userId, isHost(roomId), parsed.data.strokes);
+    if (strokes.length > 0) {
+      socket.to(roomChannel(roomId)).emit('drawing:restored', { strokes });
     }
   });
 

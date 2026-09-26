@@ -1,4 +1,11 @@
-import type { AnnotationSnapshot, AppendStrokePayload, StartStrokePayload, Stroke } from './annotation.js';
+import type {
+  AnnotationSnapshot,
+  AppendStrokePayload,
+  RemoveStrokesPayload,
+  RestoreStrokesPayload,
+  StartStrokePayload,
+  Stroke,
+} from './annotation.js';
 import type {
   ConnectTransportPayload,
   ConsumePayload,
@@ -59,6 +66,8 @@ export interface ServerToClientEvents {
   'drawing:ended': (payload: { id: string }) => void;
   /** A tela anotada mudou ou acabou: todos os desenhos saem */
   'drawing:cleared': () => void;
+  'drawing:removed': (payload: RemoveStrokesPayload) => void;
+  'drawing:restored': (payload: RestoreStrokesPayload) => void;
 }
 
 /** Eventos que o navegador envia para o servidor */
@@ -83,6 +92,9 @@ export interface ClientToServerEvents {
   'drawing:append': (payload: AppendStrokePayload) => void;
   'drawing:end': (payload: { id: string }) => void;
   'drawing:sync': (ack: (snapshot: AnnotationSnapshot) => void) => void;
+  /** Borracha, desfazer e limpar: cada pessoa remove os próprios traços; quem criou a sala, qualquer um */
+  'drawing:remove': (payload: RemoveStrokesPayload) => void;
+  'drawing:restore': (payload: RestoreStrokesPayload) => void;
 }
 
 /** Mensagem do erro de conexão quando o token de sessão é inválido ou ausente */

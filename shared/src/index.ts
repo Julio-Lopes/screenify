@@ -36,7 +36,11 @@ export type { CreateGuestRequest, GuestSessionResponse, PublicUser } from './typ
 export type {
   AnnotationSnapshot,
   AppendStrokePayload,
+  FreehandTool,
   Point,
+  RemoveStrokesPayload,
+  RestoreStrokesPayload,
+  ShapeTool,
   StartStrokePayload,
   Stroke,
   StrokeTool,

@@ -23,10 +23,23 @@ export class StrokeSender {
     this.socket.emit('drawing:start', payload);
   }
 
-  add(id: string, points: Point[]): void {
-    if (points.length === 0) return;
-    this.pending.set(id, [...(this.pending.get(id) ?? []), ...points]);
+  /**
+   * Acrescenta pontos ao próximo lote. Em formas (linha, seta, retângulo, círculo) só importa
+   * onde o arraste está agora: "latest" guarda apenas o último ponto, e o lote leva um só.
+   */
+  add(id: string, points: Point[], mode: 'append' | 'latest' = 'append'): void {
+    const last = points.at(-1);
+    if (!last) return;
+    this.pending.set(id, mode === 'latest' ? [last] : [...(this.pending.get(id) ?? []), ...points]);
     this.timer ??= setTimeout(() => this.flush(), FLUSH_INTERVAL_MS);
+  }
+
+  remove(ids: string[]): void {
+    if (ids.length > 0) this.socket.emit('drawing:remove', { ids });
+  }
+
+  restore(strokes: Stroke[]): void {
+    if (strokes.length > 0) this.socket.emit('drawing:restore', { strokes });
   }
 
   end(id: string): void {

@@ -1,6 +1,5 @@
 import { LoaderCircle } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { AnnotateToggle } from '../../annotation/AnnotateToggle';
 import { AnnotationLayer } from '../../annotation/AnnotationLayer';
 import type { Annotations } from '../../annotation/useAnnotations';
 import {
@@ -69,7 +68,6 @@ export function ScreenPreview({
         </div>
 
         <div className="flex items-center gap-2">
-          <AnnotateToggle enabled={annotations.enabled} onToggle={annotations.toggle} />
           <QualityMenu
             options={PRESET_OPTIONS}
             selected={preset}

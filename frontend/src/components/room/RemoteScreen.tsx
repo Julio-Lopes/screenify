@@ -1,6 +1,5 @@
 import { LoaderCircle, Maximize, Minimize, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { AnnotateToggle } from '../../annotation/AnnotateToggle';
 import { AnnotationLayer } from '../../annotation/AnnotationLayer';
 import type { Annotations } from '../../annotation/useAnnotations';
 import type { LayerOption, SpatialLayer } from '../../media/quality-presets';
@@ -117,7 +116,6 @@ export function RemoteScreen({
         </div>
 
         <div className="flex items-center gap-2">
-          <AnnotateToggle enabled={annotations.enabled} onToggle={annotations.toggle} />
           {options.length > 1 && selectedLabel && (
             <QualityMenu
               options={options}

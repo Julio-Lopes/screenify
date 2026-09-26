@@ -2,6 +2,7 @@ import type { Participant, RoomSummary } from '@screenify/shared';
 import { Link2, LoaderCircle, Lock, LogOut, MonitorOff, ScreenShare, SearchX, Unplug, WifiOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
+import { DrawingToolbar } from '../annotation/DrawingToolbar';
 import { useAnnotations } from '../annotation/useAnnotations';
 import { Logo } from '../components/Logo';
 import { StateMessage } from '../components/StateMessage';
@@ -323,7 +324,7 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
       )}
 
       <div className="flex min-h-0 flex-1">
-        <main className="flex min-w-0 flex-1 flex-col p-4 sm:p-6">
+        <main className="flex min-w-0 flex-1 flex-col gap-3 p-4 sm:p-6">
           <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-border bg-black">
             {share.state.status === 'connecting' || share.state.status === 'live' ? (
               <ScreenPreview
@@ -381,6 +382,12 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
               />
             )}
           </div>
+          {/* A barra aparece só quando há uma tela para anotar */}
+          {(share.state.status === 'live' || view.state.status === 'playing') && (
+            <div className="flex shrink-0 justify-center">
+              <DrawingToolbar annotations={annotations} />
+            </div>
+          )}
         </main>
         <ParticipantsPanel participants={participants} selfId={self.userId} sharingUserId={sharingUserId} />
       </div>

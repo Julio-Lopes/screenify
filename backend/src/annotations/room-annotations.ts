@@ -6,6 +6,9 @@ const MAX_STROKES_PER_SURFACE = 2000;
 /** Traços em andamento ao mesmo tempo por pessoa (um por dedo num touch, por exemplo) */
 const MAX_ACTIVE_PER_USER = 3;
 
+/** Formas guardam só o primeiro e o último ponto: os do meio foram só a prévia do arraste */
+const SHAPE_TOOLS = new Set<Stroke['tool']>(['line', 'arrow', 'rect', 'circle']);
+
 interface Surface {
   /** O Producer da tela que está sendo anotada */
   producerId: string;
@@ -66,6 +69,11 @@ export class RoomAnnotations {
     if (!surface || !stroke || stroke.userId !== userId) return false;
 
     surface.active.delete(id);
+    if (SHAPE_TOOLS.has(stroke.tool) && stroke.points.length > 2) {
+      const first = stroke.points[0];
+      const last = stroke.points.at(-1);
+      if (first && last) stroke.points = [first, last];
+    }
     surface.strokes.set(id, stroke);
 
     // Limite de memória: descarta os traços mais antigos (o Map preserva a ordem de inserção)
@@ -85,6 +93,42 @@ export class RoomAnnotations {
     const ids = [...surface.active.values()].filter((s) => s.userId === userId).map((s) => s.id);
     for (const id of ids) this.end(roomId, userId, id);
     return ids;
+  }
+
+  /**
+   * Remove traços concluídos (borracha, desfazer, limpar). Cada pessoa só remove os próprios;
+   * quem criou a sala pode remover qualquer um. Devolve os que saíram de fato.
+   */
+  remove(roomId: string, userId: string, isHost: boolean, ids: string[]): string[] {
+    const surface = this.surfaces.get(roomId);
+    if (!surface) return [];
+
+    const removed: string[] = [];
+    for (const id of ids) {
+      const stroke = surface.strokes.get(id);
+      if (stroke && (isHost || stroke.userId === userId)) {
+        surface.strokes.delete(id);
+        removed.push(id);
+      }
+    }
+    return removed;
+  }
+
+  /** Devolve traços à tela (desfazer uma remoção, refazer um traço), com a mesma regra de permissão */
+  restore(roomId: string, userId: string, isHost: boolean, strokes: Stroke[]): Stroke[] {
+    const surface = this.surfaces.get(roomId);
+    if (!surface) return [];
+
+    const restored: Stroke[] = [];
+    for (const stroke of strokes) {
+      const allowed = isHost || stroke.userId === userId;
+      const exists = surface.strokes.has(stroke.id) || surface.active.has(stroke.id);
+      if (allowed && !exists && surface.strokes.size < MAX_STROKES_PER_SURFACE) {
+        surface.strokes.set(stroke.id, stroke);
+        restored.push(stroke);
+      }
+    }
+    return restored;
   }
 
   snapshot(roomId: string): AnnotationSnapshot {

@@ -7,8 +7,16 @@ export interface Point {
   y: number;
 }
 
-/** Ferramentas disponíveis. A lista completa do prompt chega na fase de ferramentas */
-export type StrokeTool = 'pen';
+/**
+ * Ferramentas que desenham. Lápis e marcador guardam todos os pontos do traço; linha, seta,
+ * retângulo e círculo guardam dois (início e fim do arraste); texto guarda um (onde começa).
+ */
+export type StrokeTool = FreehandTool | ShapeTool | 'text';
+
+export type FreehandTool = 'pen' | 'highlighter';
+
+/** Formas definidas só pelo primeiro e pelo último ponto */
+export type ShapeTool = 'line' | 'arrow' | 'rect' | 'circle';
 
 export interface Stroke {
   id: string;
@@ -20,6 +28,8 @@ export interface Stroke {
   /** De 0 a 1 */
   opacity: number;
   points: Point[];
+  /** Só na ferramenta de texto */
+  text?: string;
 }
 
 /** Começo de um traço: o servidor completa com o userId de quem desenhou */
@@ -36,4 +46,13 @@ export interface AnnotationSnapshot {
   strokes: Stroke[];
   /** Traços que alguém ainda está desenhando neste momento */
   active: Stroke[];
+}
+
+export interface RemoveStrokesPayload {
+  ids: string[];
+}
+
+/** Traços que voltam para a tela (desfazer uma remoção, refazer um traço) */
+export interface RestoreStrokesPayload {
+  strokes: Stroke[];
 }

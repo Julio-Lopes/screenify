@@ -154,3 +154,76 @@ describe('desenho em tempo real', () => {
     expect(snapshot.strokes.map((s) => s.id)).toEqual([stroke.id]);
   });
 });
+
+
+describe('ferramentas', () => {
+  it('guarda só o início e o fim das formas', async () => {
+    const { guestClient } = await setup();
+    const arrow = { ...newStroke([{ x: 0.1, y: 0.1 }]), tool: 'arrow' as const };
+
+    guestClient.emit('drawing:start', arrow);
+    guestClient.emit('drawing:append', { id: arrow.id, points: [{ x: 0.2, y: 0.2 }, { x: 0.3, y: 0.3 }] });
+    guestClient.emit('drawing:append', { id: arrow.id, points: [{ x: 0.4, y: 0.5 }] });
+    guestClient.emit('drawing:end', { id: arrow.id });
+
+    const snapshot = await settle(guestClient);
+    expect(snapshot.strokes[0]?.points).toEqual([{ x: 0.1, y: 0.1 }, { x: 0.4, y: 0.5 }]);
+  });
+
+  it('aceita texto só na ferramenta de texto', async () => {
+    const { guestClient } = await setup();
+    const text = { ...newStroke(), tool: 'text' as const, text: 'Olha aqui' };
+
+    guestClient.emit('drawing:start', { ...newStroke(), tool: 'text' as const });
+    guestClient.emit('drawing:start', { ...newStroke(), text: 'texto numa caneta' });
+    guestClient.emit('drawing:start', text);
+    guestClient.emit('drawing:end', { id: text.id });
+
+    const snapshot = await settle(guestClient);
+    expect(snapshot.strokes).toHaveLength(1);
+    expect(snapshot.strokes[0]?.text).toBe('Olha aqui');
+  });
+});
+
+describe('remover e restaurar', () => {
+  async function drawDone(client: TestClient) {
+    const stroke = newStroke();
+    client.emit('drawing:start', stroke);
+    client.emit('drawing:end', { id: stroke.id });
+    await settle(client);
+    return stroke;
+  }
+
+  it('cada pessoa remove só os próprios traços; quem criou a sala remove qualquer um', async () => {
+    const { hostClient, guestClient } = await setup();
+    const hostStroke = await drawDone(hostClient);
+    const guestStroke = await drawDone(guestClient);
+
+    // Maria tenta apagar o traço de Julio: nada acontece
+    guestClient.emit('drawing:remove', { ids: [hostStroke.id] });
+    expect((await settle(guestClient)).strokes).toHaveLength(2);
+
+    // Julio criou a sala: pode apagar o traço de Maria, e ela é avisada
+    const removed = nextEvent(guestClient, 'drawing:removed');
+    hostClient.emit('drawing:remove', { ids: [guestStroke.id] });
+    expect((await removed)[0]).toEqual({ ids: [guestStroke.id] });
+    expect((await settle(hostClient)).strokes.map((s) => s.id)).toEqual([hostStroke.id]);
+  });
+
+  it('restaura traços removidos (desfazer), respeitando a mesma regra', async () => {
+    const { guest, host, hostClient, guestClient } = await setup();
+    const guestStroke = await drawDone(guestClient);
+    guestClient.emit('drawing:remove', { ids: [guestStroke.id] });
+    await settle(guestClient);
+
+    // Maria não pode "restaurar" um traço em nome de Julio
+    const forged = { ...newStroke(), userId: host.user.id };
+    guestClient.emit('drawing:restore', { strokes: [forged] });
+
+    const restored = nextEvent(hostClient, 'drawing:restored');
+    guestClient.emit('drawing:restore', { strokes: [{ ...guestStroke, userId: guest.user.id }] });
+    expect((await restored)[0].strokes.map((s) => s.id)).toEqual([guestStroke.id]);
+
+    expect((await settle(guestClient)).strokes.map((s) => s.id)).toEqual([guestStroke.id]);
+  });
+});

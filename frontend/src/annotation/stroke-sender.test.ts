@@ -41,6 +41,16 @@ describe('StrokeSender', () => {
     expect(emit.mock.calls[0]?.[1].points).toHaveLength(30);
   });
 
+  it('em formas, manda só a posição mais recente do arraste', () => {
+    const { socket, emit } = fakeSocket();
+    const sender = new StrokeSender(socket);
+
+    for (let i = 0; i < 10; i++) sender.add('a', [{ x: i / 10, y: 0.5 }], 'latest');
+    vi.advanceTimersByTime(FLUSH_INTERVAL_MS);
+
+    expect(emit.mock.calls[0]?.[1].points).toEqual([{ x: 0.9, y: 0.5 }]);
+  });
+
   it('envia o que falta antes de concluir o traço', () => {
     const { socket, emit } = fakeSocket();
     const sender = new StrokeSender(socket);
