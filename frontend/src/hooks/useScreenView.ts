@@ -1,6 +1,6 @@
 import type { ProducerInfo } from '@screenify/shared';
 import type { types } from 'mediasoup-client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   actualLayerHeight,
   layerForMaxHeight,
@@ -26,12 +26,14 @@ interface ScreenView {
   expectedHeight: number | null;
   setLayer: (layer: SpatialLayer) => void;
   retry: () => void;
+  getStats: () => Promise<RTCStatsReport> | null;
 }
 
 /** Recebe a transmissão de tela de outra pessoa e a entrega como MediaStream para um <video> */
 export function useScreenView(media: RoomMedia | null, producer: ProducerInfo | null): ScreenView {
   const [state, setState] = useState<ScreenViewState>({ status: 'idle' });
   const [attempt, setAttempt] = useState(0);
+  const consumerRef = useRef<types.Consumer | null>(null);
   const preferredHeight = usePreferencesStore((s) => s.viewMaxHeight);
   const savePreferredHeight = usePreferencesStore((s) => s.setViewMaxHeight);
 
@@ -73,6 +75,7 @@ export function useScreenView(media: RoomMedia | null, producer: ProducerInfo | 
         return;
       }
       consumer = created;
+      consumerRef.current = created;
       setState({ status: 'playing', stream: new MediaStream([created.track]), consumerId: created.id, simulcast });
     })().catch((error: unknown) => {
       // Se a transmissão terminou enquanto conectávamos, o efeito já foi cancelado e o erro não importa
@@ -87,6 +90,7 @@ export function useScreenView(media: RoomMedia | null, producer: ProducerInfo | 
       cancelled = true;
       transport?.off('connectionstatechange', onConnectionChange);
       consumer?.close();
+      consumerRef.current = null;
     };
   }, [media, producerId, attempt]);
 
@@ -113,5 +117,7 @@ export function useScreenView(media: RoomMedia | null, producer: ProducerInfo | 
   );
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
-  return { state, layers, selectedLayer, expectedHeight, setLayer, retry };
+  const getStats = useCallback(() => consumerRef.current?.getStats() ?? null, []);
+
+  return { state, layers, selectedLayer, expectedHeight, setLayer, retry, getStats };
 }

@@ -73,6 +73,11 @@ export class ScreenShareManager {
     return { height: preset.height, frameRate: preset.frameRate };
   }
 
+  /** Relatório do WebRTC da transmissão, para as métricas; null quando não há transmissão */
+  getStats(): Promise<RTCStatsReport> | null {
+    return this.producer?.getStats() ?? null;
+  }
+
   async start(): Promise<void> {
     if (this.state.status !== 'idle' || this.disposed) return;
     this.setState({ status: 'starting' });

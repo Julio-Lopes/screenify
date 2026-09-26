@@ -71,6 +71,21 @@ export class WorkerPool {
     return this.entries.length;
   }
 
+  /** Uso de CPU e memória de cada worker, lido do próprio processo do mediasoup */
+  async usage(): Promise<{ pid: number; cpuSeconds: number; maxMemoryMb: number }[]> {
+    return Promise.all(
+      this.entries.map(async ({ worker }) => {
+        const usage = await worker.getResourceUsage();
+        return {
+          pid: worker.pid,
+          // ru_utime e ru_stime vêm em milissegundos; ru_maxrss em kilobytes
+          cpuSeconds: Math.round((usage.ru_utime + usage.ru_stime) / 10) / 100,
+          maxMemoryMb: Math.round(usage.ru_maxrss / 1024),
+        };
+      }),
+    );
+  }
+
   close(): void {
     for (const { worker } of this.entries) {
       worker.close();

@@ -12,6 +12,7 @@ interface ScreenShare {
   start: () => void;
   stop: () => void;
   setPreset: (preset: SharePresetId) => void;
+  getStats: () => Promise<RTCStatsReport> | null;
 }
 
 export function useScreenShare(media: RoomMedia | null): ScreenShare {
@@ -62,5 +63,7 @@ export function useScreenShare(media: RoomMedia | null): ScreenShare {
     [manager, savePreset],
   );
 
-  return { state, supported: ScreenShareManager.isSupported(), preset, start, stop, setPreset };
+  const getStats = useCallback(() => manager?.getStats() ?? null, [manager]);
+
+  return { state, supported: ScreenShareManager.isSupported(), preset, start, stop, setPreset, getStats };
 }

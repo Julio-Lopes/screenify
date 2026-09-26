@@ -1,8 +1,10 @@
 import { createServer } from 'node:http';
+import type { ServerMetrics } from '@screenify/shared';
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { prisma } from './database/prisma.js';
 import { MediaRegistry } from './mediasoup/media-registry.js';
+import { createMetricsCollector } from './metrics/server-metrics.js';
 import { WorkerPool } from './mediasoup/worker-pool.js';
 import { closeAllOpenParticipations } from './services/participant.service.js';
 import { RoomCleanupService } from './services/room-cleanup.service.js';
@@ -10,7 +12,14 @@ import { logger } from './utils/logger.js';
 import { createSocketServer, prepareSocketShutdown } from './websocket/socket-server.js';
 import type { AppServer } from './websocket/types.js';
 
-const app = createApp();
+// O coletor de métricas precisa dos workers, que só existem depois do start: a função é resolvida na hora do pedido
+let collectMetrics: (() => Promise<ServerMetrics>) | null = null;
+const app = createApp({
+  metrics: () => {
+    if (!collectMetrics) throw new Error('Servidor ainda iniciando');
+    return collectMetrics();
+  },
+});
 const httpServer = createServer(app);
 
 let io: AppServer | null = null;
@@ -31,6 +40,7 @@ async function start(): Promise<void> {
   });
   const media = new MediaRegistry(workers);
   io = createSocketServer(httpServer, media);
+  collectMetrics = createMetricsCollector(media, workers);
 
   cleanup = new RoomCleanupService(env.ROOM_EMPTY_TIMEOUT * 1000, media);
   // Primeira rodada ja na subida: salas que venceram enquanto o servidor estava fora do ar

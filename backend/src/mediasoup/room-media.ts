@@ -253,6 +253,19 @@ export class RoomMedia {
     this.peers.delete(userId);
   }
 
+  /** Quantos objetos de mídia a sala tem agora, para as métricas do servidor */
+  stats(): { transports: number; producers: number; consumers: number } {
+    let transports = 0;
+    let producers = 0;
+    let consumers = 0;
+    for (const peer of this.peers.values()) {
+      transports += peer.transports.size;
+      producers += peer.producers.size;
+      consumers += peer.consumers.size;
+    }
+    return { transports, producers, consumers };
+  }
+
   get isEmpty(): boolean {
     return this.peers.size === 0;
   }

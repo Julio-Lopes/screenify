@@ -30,6 +30,20 @@ export class MediaRegistry {
     return creation;
   }
 
+  async stats(): Promise<{ routers: number; transports: number; producers: number; consumers: number }> {
+    const rooms = await Promise.allSettled(this.rooms.values());
+    const totals = { routers: 0, transports: 0, producers: 0, consumers: 0 };
+    for (const result of rooms) {
+      if (result.status !== 'fulfilled') continue;
+      const room = result.value.stats();
+      totals.routers++;
+      totals.transports += room.transports;
+      totals.producers += room.producers;
+      totals.consumers += room.consumers;
+    }
+    return totals;
+  }
+
   async close(roomId: string): Promise<void> {
     const media = this.rooms.get(roomId);
     if (!media) return;

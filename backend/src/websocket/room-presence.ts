@@ -71,6 +71,13 @@ export class RoomPresence {
     return this.rooms.get(roomId)?.size ?? 0;
   }
 
+  /** Salas com alguém conectado e total de pessoas conectadas */
+  stats(): { active: number; participants: number } {
+    let participants = 0;
+    for (const members of this.rooms.values()) participants += members.size;
+    return { active: this.rooms.size, participants };
+  }
+
   /** Primeira cor livre na sala; se todas estiverem em uso, repete em ciclo */
   nextColor(roomId: string): string {
     const inUse = new Set(this.participants(roomId).map((p) => p.color));

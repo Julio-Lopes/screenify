@@ -16,6 +16,7 @@ import { RemoteScreen } from '../components/room/RemoteScreen';
 import { RoomShell } from '../components/room/RoomShell';
 import { ScreenPreview } from '../components/room/ScreenPreview';
 import { ShareScreenButton } from '../components/room/ShareScreenButton';
+import { StreamStatusBar } from '../components/room/StreamStatusBar';
 import { Button } from '../components/ui/Button';
 import { useMediaSession } from '../hooks/useMediaSession';
 import { useRoom } from '../hooks/useRoom';
@@ -23,6 +24,7 @@ import { useRoomConnection } from '../hooks/useRoomConnection';
 import { useRoomProducers } from '../hooks/useRoomProducers';
 import { useScreenShare } from '../hooks/useScreenShare';
 import { useScreenView } from '../hooks/useScreenView';
+import { useStreamStats } from '../hooks/useStreamStats';
 import { usePreferencesStore } from '../stores/preferences.store';
 import type { CursorContext } from '../cursor/CursorLayer';
 import { getSharePreset } from '../media/quality-presets';
@@ -245,6 +247,11 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
     selfSharing ? `self:${joinedAt}` : (screenProducer?.producerId ?? null),
   );
   const showCursors = usePreferencesStore((s) => s.showCursors);
+  // Métricas de quem transmite (o que sai) ou de quem assiste (o que chega)
+  const sending = share.state.status === 'live';
+  const watching = view.state.status === 'playing';
+  const outboundStats = useStreamStats(share.getStats, 'outbound', sending);
+  const inboundStats = useStreamStats(view.getStats, 'inbound', watching && !sending);
   const toggleCursors = usePreferencesStore((s) => s.toggleCursors);
   const { getRemoteActive } = annotations;
   const cursors: CursorContext = useMemo(
@@ -409,7 +416,13 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
         </main>
         <ParticipantsPanel participants={participants} selfId={self.userId} sharingUserId={sharingUserId} />
       </div>
-
+      
+      {(sending || watching) && (
+        <StreamStatusBar
+          metrics={sending ? outboundStats : inboundStats}
+          label={sending ? 'Transmitindo' : `Assistindo ${otherSharer?.displayName ?? ''}`.trim()}
+        />
+      )}
       <EndRoomModal open={confirmEnd} ending={ending} onCancel={() => setConfirmEnd(false)} onConfirm={endRoom} />
     </div>
   );

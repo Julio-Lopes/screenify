@@ -46,3 +46,4 @@ export type {
   StrokeTool,
 } from './types/annotation.js';
 export type { CursorPosition } from './types/cursor.js';
+export type { ServerMetrics } from './types/metrics.js';

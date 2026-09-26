@@ -10,6 +10,7 @@ import { io as connect, type Socket } from 'socket.io-client';
 import { createApp } from '../../src/app.js';
 import { env } from '../../src/config/env.js';
 import { MediaRegistry } from '../../src/mediasoup/media-registry.js';
+import { createMetricsCollector } from '../../src/metrics/server-metrics.js';
 import { WorkerPool } from '../../src/mediasoup/worker-pool.js';
 import { createSocketServer } from '../../src/websocket/socket-server.js';
 
@@ -25,15 +26,16 @@ export interface TestServer {
 
 /** Sobe o servidor completo (HTTP + WebSocket + mediasoup) numa porta livre escolhida pelo sistema */
 export async function startTestServer(): Promise<TestServer> {
-  const app = createApp();
-  const httpServer = createServer(app);
   const workers = await WorkerPool.create({
     listenIp: env.MEDIASOUP_LISTEN_IP,
     announcedAddress: env.MEDIASOUP_ANNOUNCED_IP,
     minPort: env.MEDIASOUP_MIN_PORT,
     maxPort: env.MEDIASOUP_MAX_PORT,
   });
-  const io = createSocketServer(httpServer, new MediaRegistry(workers));
+  const media = new MediaRegistry(workers);
+  const app = createApp({ metrics: createMetricsCollector(media, workers) });
+  const httpServer = createServer(app);
+  const io = createSocketServer(httpServer, media);
   const clients = new Set<TestClient>();
 
   await new Promise<void>((resolve) => httpServer.listen(0, resolve));
