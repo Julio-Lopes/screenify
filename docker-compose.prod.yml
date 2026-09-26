@@ -1,0 +1,69 @@
+# Produção no Coolify (build pack "Docker Compose"). Não é usado em desenvolvimento.
+#
+# As variáveis ${...} viram campos editáveis em Environment Variables no Coolify:
+#   ${VAR:?}          obrigatória: o deploy não roda sem ela
+#   ${VAR:-padrão}    opcional, com valor inicial
+#   ${SERVICE_...}    gerada pelo próprio Coolify (senhas e tokens aleatórios)
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: screenify
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}
+      POSTGRES_DB: screenify
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U screenify -d screenify"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Sem "ports": o banco só é alcançável pelo backend, dentro da rede do Compose
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CLIENT_URL: ${CLIENT_URL:-https://screenify.jcrldev.com}
+      DATABASE_URL: postgresql://screenify:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/screenify?schema=public
+      # O Traefik do Coolify é o único proxy na frente do backend
+      TRUST_PROXY: 1
+      ROOM_EMPTY_TIMEOUT: ${ROOM_EMPTY_TIMEOUT:-600}
+      METRICS_TOKEN: ${SERVICE_BASE64_64_METRICS}
+      # mediasoup: escuta em todas as interfaces do container e anuncia o IP público da VPS
+      MEDIASOUP_LISTEN_IP: 0.0.0.0
+      MEDIASOUP_ANNOUNCED_IP: ${MEDIASOUP_ANNOUNCED_IP:?}
+      MEDIASOUP_MIN_PORT: 40000
+      MEDIASOUP_MAX_PORT: 40000
+    # A mídia não passa pelo proxy (o Traefik só entende HTTP): vai direto para a porta da VPS.
+    # O HTTP e o WebSocket entram pelo domínio configurado no Coolify, sem porta publicada aqui.
+    ports:
+      - "40000:40000/udp"
+      - "40000:40000/tcp"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    # Tempo para o desligamento limpo (Fase 6) antes de o Docker forçar o encerramento
+    stop_grace_period: 30s
+
+volumes:
+  postgres_data:
