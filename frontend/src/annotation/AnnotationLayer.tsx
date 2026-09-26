@@ -1,11 +1,12 @@
 import type { Point, Stroke, StrokeTool } from '@screenify/shared';
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from 'react';
 import { cn } from '../utils/cn';
-import { pixelDistance, toNormalized, videoContentRect, type Rect } from './geometry';
+import { pixelDistance, toNormalized } from './geometry';
 import { hitStroke } from './hit-test';
 import { drawStroke, fitCanvas } from './renderer';
 import { HIGHLIGHTER, isShapeTool, TEXT_FONT_FAMILY, textFontSize } from './tools';
 import type { Annotations } from './useAnnotations';
+import { useVideoContentRect } from './useVideoContentRect';
 
 interface AnnotationLayerProps {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -35,42 +36,11 @@ export function AnnotationLayer({ videoRef, annotations }: AnnotationLayerProps)
   const liveRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef<Stroke | null>(null);
   const frameRef = useRef<number | null>(null);
-  const [rect, setRect] = useState<Rect | null>(null);
+  // Tamanho, proporção e posição da imagem dentro do <video>
+  const rect = useVideoContentRect(videoRef);
   /** Traços que a borracha já tocou neste arraste: somem na hora, são removidos ao soltar */
   const [erasing, setErasing] = useState<ReadonlyMap<string, Stroke>>(new Map());
   const [textDraft, setTextDraft] = useState<TextDraft | null>(null);
-
-  // Acompanha tamanho, proporção e posição da imagem dentro do <video>
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const update = () => {
-      const next = videoContentRect(video);
-      setRect((current) =>
-        current &&
-        current.x === next.x &&
-        current.y === next.y &&
-        current.width === next.width &&
-        current.height === next.height
-          ? current
-          : next,
-      );
-    };
-
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(video);
-    // A resolução da transmissão muda sem o elemento mudar de tamanho
-    video.addEventListener('resize', update);
-    video.addEventListener('loadedmetadata', update);
-
-    return () => {
-      observer.disconnect();
-      video.removeEventListener('resize', update);
-      video.removeEventListener('loadedmetadata', update);
-    };
-  }, [videoRef]);
 
   // Trocar de ferramenta abandona um texto que estava sendo digitado
   useEffect(() => {

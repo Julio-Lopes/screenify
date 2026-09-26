@@ -1,11 +1,13 @@
 import type {
   AnnotationSnapshot,
   AppendStrokePayload,
+  Point,
   RemoveStrokesPayload,
   RestoreStrokesPayload,
   StartStrokePayload,
   Stroke,
 } from './annotation.js';
+import type { CursorPosition } from './cursor.js';
 import type {
   ConnectTransportPayload,
   ConsumePayload,
@@ -68,6 +70,8 @@ export interface ServerToClientEvents {
   'drawing:cleared': () => void;
   'drawing:removed': (payload: RemoveStrokesPayload) => void;
   'drawing:restored': (payload: RestoreStrokesPayload) => void;
+  'cursor:moved': (position: CursorPosition) => void;
+  'cursor:left': (payload: { userId: string }) => void;
 }
 
 /** Eventos que o navegador envia para o servidor */
@@ -95,6 +99,9 @@ export interface ClientToServerEvents {
   /** Borracha, desfazer e limpar: cada pessoa remove os próprios traços; quem criou a sala, qualquer um */
   'drawing:remove': (payload: RemoveStrokesPayload) => void;
   'drawing:restore': (payload: RestoreStrokesPayload) => void;
+  // Cursores: sem ack e descartáveis, uma posição perdida é logo substituída pela próxima
+  'cursor:move': (position: Point) => void;
+  'cursor:leave': () => void;
 }
 
 /** Mensagem do erro de conexão quando o token de sessão é inválido ou ausente */

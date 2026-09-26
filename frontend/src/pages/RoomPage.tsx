@@ -1,6 +1,6 @@
 import type { Participant, RoomSummary } from '@screenify/shared';
 import { Link2, LoaderCircle, Lock, LogOut, MonitorOff, ScreenShare, SearchX, Unplug, WifiOff } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { DrawingToolbar } from '../annotation/DrawingToolbar';
 import { useAnnotations } from '../annotation/useAnnotations';
@@ -23,6 +23,8 @@ import { useRoomConnection } from '../hooks/useRoomConnection';
 import { useRoomProducers } from '../hooks/useRoomProducers';
 import { useScreenShare } from '../hooks/useScreenShare';
 import { useScreenView } from '../hooks/useScreenView';
+import { usePreferencesStore } from '../stores/preferences.store';
+import type { CursorContext } from '../cursor/CursorLayer';
 import { getSharePreset } from '../media/quality-presets';
 import { ApiError } from '../services/api';
 import { deleteRoom } from '../services/rooms';
@@ -242,6 +244,20 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
     socket,
     selfSharing ? `self:${joinedAt}` : (screenProducer?.producerId ?? null),
   );
+  const showCursors = usePreferencesStore((s) => s.showCursors);
+  const toggleCursors = usePreferencesStore((s) => s.toggleCursors);
+  const { getRemoteActive } = annotations;
+  const cursors: CursorContext = useMemo(
+    () => ({
+      socket,
+      participants,
+      selfId: self.userId,
+      visible: showCursors,
+      toggle: toggleCursors,
+      isDrawing: (userId) => getRemoteActive().some((stroke) => stroke.userId === userId),
+    }),
+    [socket, participants, self.userId, showCursors, toggleCursors, getRemoteActive],
+  );
   // Badges do cabeçalho: a qualidade escolhida por quem transmite (estável). A real aparece no player
   const sharePreset = getSharePreset(share.preset);
   const liveTarget =
@@ -334,6 +350,7 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
                 preset={share.preset}
                 onPresetChange={share.setPreset}
                 annotations={annotations}
+                cursors={cursors}
               />
                         ) : otherSharer ? (
               view.state.status === 'playing' ? (
@@ -345,6 +362,7 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
                   expectedHeight={view.expectedHeight}
                   onLayerChange={view.setLayer}
                   annotations={annotations}
+                  cursors={cursors}
                 />
               ) : view.state.status === 'error' ? (
                 <StateMessage

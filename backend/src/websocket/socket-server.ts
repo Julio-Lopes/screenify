@@ -8,6 +8,7 @@ import { closeRoomForEveryone, registerRoomHandlers, stopTrackingParticipations 
 import { socketAuth } from './socket-auth.js';
 import type { AppServer } from './types.js';
 import { registerDrawingHandlers } from './drawing.handlers.js';
+import { registerCursorHandlers } from './cursor.handlers.js';
 
 let realtime: { io: AppServer; media: MediaRegistry } | null = null;
 
@@ -26,6 +27,7 @@ export function createSocketServer(httpServer: HttpServer, media: MediaRegistry)
     registerRoomHandlers(io, socket, media);
     registerMediaHandlers(io, socket, media);
     registerDrawingHandlers(socket);
+    registerCursorHandlers(socket);
   });
 
   realtime = { io, media };

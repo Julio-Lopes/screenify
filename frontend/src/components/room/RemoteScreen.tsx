@@ -2,6 +2,8 @@ import { LoaderCircle, Maximize, Minimize, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { AnnotationLayer } from '../../annotation/AnnotationLayer';
 import type { Annotations } from '../../annotation/useAnnotations';
+import { CursorLayer, type CursorContext } from '../../cursor/CursorLayer';
+import { CursorToggle } from '../../cursor/CursorToggle';
 import type { LayerOption, SpatialLayer } from '../../media/quality-presets';
 import { QualityMenu } from '../ui/QualityMenu';
 
@@ -15,6 +17,7 @@ interface RemoteScreenProps {
   expectedHeight: number | null;
   onLayerChange: (layer: SpatialLayer) => void;
   annotations: Annotations;
+  cursors: CursorContext;
 }
 
 /** A tela de quem está transmitindo, como chega para quem assiste */
@@ -26,6 +29,7 @@ export function RemoteScreen({
   expectedHeight,
   onLayerChange,
   annotations,
+  cursors,
 }: RemoteScreenProps) {
   // O menu trabalha com ids em texto; a camada é um número
   const options = layers.map((option) => ({ id: String(option.layer), label: option.label }));
@@ -88,6 +92,7 @@ export function RemoteScreen({
         aria-label={`Tela de ${sharerName}`}
       />
       <AnnotationLayer videoRef={videoRef} annotations={annotations} />
+      <CursorLayer videoRef={videoRef} cursors={cursors} />
 
       {!firstFrame && (
         <div role="status" className="absolute inset-0 flex items-center justify-center gap-2.5 text-body-sm text-text-secondary">
@@ -116,6 +121,7 @@ export function RemoteScreen({
         </div>
 
         <div className="flex items-center gap-2">
+          <CursorToggle visible={cursors.visible} onToggle={cursors.toggle} />
           {options.length > 1 && selectedLabel && (
             <QualityMenu
               options={options}

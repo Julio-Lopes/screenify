@@ -2,6 +2,8 @@ import { LoaderCircle } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { AnnotationLayer } from '../../annotation/AnnotationLayer';
 import type { Annotations } from '../../annotation/useAnnotations';
+import { CursorLayer, type CursorContext } from '../../cursor/CursorLayer';
+import { CursorToggle } from '../../cursor/CursorToggle';
 import {
   formatMbps,
   getSharePreset,
@@ -19,6 +21,7 @@ interface ScreenPreviewProps {
   preset: SharePresetId;
   onPresetChange: (preset: SharePresetId) => void;
   annotations: Annotations;
+  cursors: CursorContext;
 }
 
 const PRESET_OPTIONS = SHARE_PRESETS.map((preset) => ({
@@ -35,6 +38,7 @@ export function ScreenPreview({
   preset,
   onPresetChange,
   annotations,
+  cursors,
 }: ScreenPreviewProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -47,6 +51,7 @@ export function ScreenPreview({
     <div className="relative flex h-full w-full items-center justify-center">
       <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-contain" />
       <AnnotationLayer videoRef={videoRef} annotations={annotations} />
+      <CursorLayer videoRef={videoRef} cursors={cursors} />
 
       <div className="absolute right-3 bottom-3 left-3 flex items-end justify-between gap-2">
         <div className="flex items-center gap-2 rounded-md bg-background/80 px-2.5 py-1.5 text-caption backdrop-blur">
@@ -68,6 +73,7 @@ export function ScreenPreview({
         </div>
 
         <div className="flex items-center gap-2">
+          <CursorToggle visible={cursors.visible} onToggle={cursors.toggle} />
           <QualityMenu
             options={PRESET_OPTIONS}
             selected={preset}

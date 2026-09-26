@@ -45,3 +45,4 @@ export type {
   Stroke,
   StrokeTool,
 } from './types/annotation.js';
+export type { CursorPosition } from './types/cursor.js';
