@@ -1,9 +1,10 @@
-import type { Participant, RoomSummary, SocketAuthErrorMessage } from '@screenify/shared';
+import type { Participant, RoomSummary, SocketAuthErrorMessage, SocketLimitErrorMessage } from '@screenify/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createSocket, type AppSocket } from '../services/socket';
 import { useSessionStore } from '../stores/session.store';
 
 const AUTH_ERROR: SocketAuthErrorMessage = 'UNAUTHORIZED';
+const LIMIT_ERROR: SocketLimitErrorMessage = 'TOO_MANY_CONNECTIONS';
 
 export type ConnectionState =
   | { status: 'connecting' }
@@ -83,6 +84,15 @@ export function useRoomConnection(code: string, token: string, initialPassword?:
         // Sessão não existe mais no servidor: a página volta a pedir o nome
         socket.disconnect();
         clearSession();
+        return;
+      }
+
+      if (error.message === LIMIT_ERROR) {
+        socket.disconnect();
+        setState({
+          status: 'error',
+          message: 'Muitas conexões abertas a partir da sua rede. Feche abas antigas da sala ou aguarde um minuto.',
+        });
         return;
       }
 

@@ -30,6 +30,7 @@ export type {
   RoomClosedReason,
   ServerToClientEvents,
   SocketAuthErrorMessage,
+  SocketLimitErrorMessage,
 } from './types/realtime.js';
 export type { CreateRoomRequest, RoomResponse, RoomSummary } from './types/room.js';
 export type { CreateGuestRequest, GuestSessionResponse, PublicUser } from './types/user.js';

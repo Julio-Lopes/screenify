@@ -106,3 +106,6 @@ export interface ClientToServerEvents {
 
 /** Mensagem do erro de conexão quando o token de sessão é inválido ou ausente */
 export type SocketAuthErrorMessage = 'UNAUTHORIZED';
+
+/** Mensagem do erro de conexão quando o mesmo endereço abre conexões demais */
+export type SocketLimitErrorMessage = 'TOO_MANY_CONNECTIONS';

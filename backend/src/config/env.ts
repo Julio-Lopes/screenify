@@ -20,6 +20,13 @@ const envSchema = z
     CLIENT_URL: originList,
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+    // Quantos proxies confiáveis existem na frente do servidor (1 atrás do Coolify/Traefik, 0 em desenvolvimento).
+    // Define de onde vem o IP real de quem acessa, usado pelos limites de requisição
+    TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
+    // Limites de conexão WebSocket por IP. Altos de propósito: uma turma inteira ou um escritório
+    // costuma sair para a internet pelo mesmo IP, e todos precisam conseguir entrar
+    SOCKET_MAX_CONNECTIONS_PER_IP: z.coerce.number().int().min(1).default(50),
+    SOCKET_NEW_CONNECTIONS_PER_MINUTE: z.coerce.number().int().min(1).default(120),
     // Token para GET /metrics; sem ele, o endpoint não existe
     METRICS_TOKEN: z.string().min(16).optional(),
     // Segundos que uma sala pode ficar vazia antes de ser excluída (10 minutos por padrão)

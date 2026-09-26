@@ -3,12 +3,13 @@ import { Server } from 'socket.io';
 import { env } from '../config/env.js';
 import type { MediaRegistry } from '../mediasoup/media-registry.js';
 import { logger } from '../utils/logger.js';
+import { registerCursorHandlers } from './cursor.handlers.js';
+import { registerDrawingHandlers } from './drawing.handlers.js';
 import { registerMediaHandlers } from './media.handlers.js';
 import { closeRoomForEveryone, registerRoomHandlers, stopTrackingParticipations } from './room.handlers.js';
 import { socketAuth } from './socket-auth.js';
+import { createConnectionGuard, limitEventRate, MAX_MESSAGE_BYTES } from './socket-limits.js';
 import type { AppServer } from './types.js';
-import { registerDrawingHandlers } from './drawing.handlers.js';
-import { registerCursorHandlers } from './cursor.handlers.js';
 
 let realtime: { io: AppServer; media: MediaRegistry } | null = null;
 
@@ -18,12 +19,19 @@ export function createSocketServer(httpServer: HttpServer, media: MediaRegistry)
       origin: env.CLIENT_URL,
       credentials: true,
     },
+    // Mensagem maior que isso derruba a conexão antes de ser lida
+    maxHttpBufferSize: MAX_MESSAGE_BYTES,
   });
 
+  // A ordem importa: primeiro o limite por IP (barato), depois a autenticação (consulta o banco)
+  const connections = createConnectionGuard();
+  io.use((socket, next) => connections.check(socket, next));
   io.use(socketAuth);
 
   io.on('connection', (socket) => {
     logger.info({ userId: socket.data.user.id }, '[SOCKET] Connected');
+    connections.track(socket);
+    limitEventRate(socket);
     registerRoomHandlers(io, socket, media);
     registerMediaHandlers(io, socket, media);
     registerDrawingHandlers(socket);

@@ -4,6 +4,7 @@ export type ApiErrorCode =
   | 'UNAUTHORIZED'
   | 'FORBIDDEN'
   | 'NOT_FOUND'
+  | 'TOO_MANY_REQUESTS'
   | 'INTERNAL_SERVER_ERROR';
 
 export interface ApiErrorBody {

@@ -3,6 +3,10 @@ import type { AppSocket } from '../services/socket';
 
 /** Intervalo entre envios de pontos: no máximo 20 mensagens por segundo por traço */
 export const FLUSH_INTERVAL_MS = 50;
+/** O servidor recusa mensagens acima de 512 KB; lotes grandes (desfazer um "limpar") são divididos */
+const MAX_BATCH_BYTES = 200 * 1024;
+/** Limite de ids por mensagem aceito pelo servidor */
+const MAX_IDS_PER_MESSAGE = 500;
 
 /**
  * Envia os traços para a sala enquanto são desenhados. Os pontos são acumulados e enviados
@@ -35,13 +39,29 @@ export class StrokeSender {
   }
 
   remove(ids: string[]): void {
-    if (ids.length > 0) this.socket.emit('drawing:remove', { ids });
+    for (let i = 0; i < ids.length; i += MAX_IDS_PER_MESSAGE) {
+      this.socket.emit('drawing:remove', { ids: ids.slice(i, i + MAX_IDS_PER_MESSAGE) });
+    }
   }
 
+  /** Divide em mensagens de até ~200 KB: desfazer a limpeza de uma tela cheia pode somar megabytes */
   restore(strokes: Stroke[]): void {
-    if (strokes.length > 0) this.socket.emit('drawing:restore', { strokes });
-  }
+    let batch: Stroke[] = [];
+    let batchBytes = 0;
 
+    for (const stroke of strokes) {
+      const bytes = JSON.stringify(stroke).length;
+      if (batch.length > 0 && batchBytes + bytes > MAX_BATCH_BYTES) {
+        this.socket.emit('drawing:restore', { strokes: batch });
+        batch = [];
+        batchBytes = 0;
+      }
+      batch.push(stroke);
+      batchBytes += bytes;
+    }
+    if (batch.length > 0) this.socket.emit('drawing:restore', { strokes: batch });
+  }
+  
   end(id: string): void {
     // O que ainda estava no lote sai antes do fim, para o traço chegar inteiro
     this.flush();

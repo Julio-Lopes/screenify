@@ -51,6 +51,21 @@ describe('StrokeSender', () => {
     expect(emit.mock.calls[0]?.[1].points).toEqual([{ x: 0.9, y: 0.5 }]);
   });
 
+  it('divide restaurações grandes em várias mensagens abaixo do limite do servidor', () => {
+    const { socket, emit } = fakeSocket();
+    const points = Array.from({ length: 4000 }, (_, i) => ({ x: i / 4000, y: 0.5 }));
+    const big = Array.from({ length: 10 }, (_, i) => ({ ...stroke, id: String(i), points }));
+
+    new StrokeSender(socket).restore(big);
+
+    expect(emit.mock.calls.length).toBeGreaterThan(1);
+    for (const [, payload] of emit.mock.calls) {
+      expect(JSON.stringify(payload).length).toBeLessThan(512 * 1024);
+    }
+    const sent = emit.mock.calls.flatMap(([, payload]) => payload.strokes);
+    expect(sent).toHaveLength(10);
+  });
+
   it('envia o que falta antes de concluir o traço', () => {
     const { socket, emit } = fakeSocket();
     const sender = new StrokeSender(socket);
