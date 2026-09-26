@@ -1,6 +1,7 @@
 import type { JoinRoomErrorCode, JoinRoomResult, Participant } from '@screenify/shared';
 import { roomAnnotations } from '../annotations/room-annotations.js';
 import type { MediaRegistry } from '../mediasoup/media-registry.js';
+import { Prisma } from '../generated/prisma/client.js';
 import { joinRoomSchema } from '../schemas/room.schemas.js';
 import { closeParticipation, hasJoinedBefore, openParticipation } from '../services/participant.service.js';
 import { findJoinableRoom, findRoomByCode } from '../services/room.service.js';
@@ -38,6 +39,11 @@ export function registerRoomHandlers(io: AppServer, socket: AppSocket, media: Me
     try {
       ack(await joinRoom(io, socket, media, parsed.data.code, parsed.data.password));
     } catch (error) {
+      // A sala foi excluida (expirou) no instante entre ser encontrada e a entrada ser gravada
+      if (error instanceof Prisma.PrismaClientKnownRequestError && ['P2003', 'P2025'].includes(error.code)) {
+        ack(fail('ROOM_NOT_FOUND', 'Sala nao encontrada'));
+        return;
+      }
       logger.error({ err: error, socketId: socket.id }, '[ROOM] Join failed');
       ack(fail('INTERNAL_ERROR', 'Não foi possível entrar na sala'));
     }

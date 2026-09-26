@@ -423,7 +423,7 @@ function RoomNotFound({ code }: { code: string }) {
       tone="error"
       code={`ROOM_NOT_FOUND · ${code}`}
       title="Sala não encontrada"
-      description="Verifique o código ou peça um novo link a quem criou a sala."
+      description="Verifique o código ou peça um novo link a quem criou a sala. Salas que ficam vazias por alguns minutos são encerradas automaticamente."
       actions={
         <Button variant="secondary" onClick={() => navigate('/')}>
           Voltar ao início

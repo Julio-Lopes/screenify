@@ -5,6 +5,7 @@ import { prisma } from './database/prisma.js';
 import { MediaRegistry } from './mediasoup/media-registry.js';
 import { WorkerPool } from './mediasoup/worker-pool.js';
 import { closeAllOpenParticipations } from './services/participant.service.js';
+import { RoomCleanupService } from './services/room-cleanup.service.js';
 import { logger } from './utils/logger.js';
 import { createSocketServer, prepareSocketShutdown } from './websocket/socket-server.js';
 import type { AppServer } from './websocket/types.js';
@@ -14,6 +15,7 @@ const httpServer = createServer(app);
 
 let io: AppServer | null = null;
 let workers: WorkerPool | null = null;
+let cleanup: RoomCleanupService | null = null;
 
 async function start(): Promise<void> {
   const closed = await closeAllOpenParticipations();
@@ -27,7 +29,13 @@ async function start(): Promise<void> {
     minPort: env.MEDIASOUP_MIN_PORT,
     maxPort: env.MEDIASOUP_MAX_PORT,
   });
-  io = createSocketServer(httpServer, new MediaRegistry(workers));
+  const media = new MediaRegistry(workers);
+  io = createSocketServer(httpServer, media);
+
+  cleanup = new RoomCleanupService(env.ROOM_EMPTY_TIMEOUT * 1000, media);
+  // Primeira rodada ja na subida: salas que venceram enquanto o servidor estava fora do ar
+  await cleanup.runOnce();
+  cleanup.start();
 
   httpServer.listen(env.PORT, () => {
     logger.info(`[HTTP] Server listening on port ${env.PORT} (${env.NODE_ENV})`);
@@ -48,6 +56,8 @@ function shutdown(signal: NodeJS.Signals): void {
     logger.error('[HTTP] Forced shutdown after timeout');
     process.exit(1);
   }, 10_000).unref();
+
+  cleanup?.stop();
 
   // A partir daqui as desconexões não gravam no banco uma a uma:
   // a saída de todos é registrada de uma vez, antes de fechar as conexões

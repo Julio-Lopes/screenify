@@ -20,7 +20,8 @@ const envSchema = z
     CLIENT_URL: originList,
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
-
+    // Segundos que uma sala pode ficar vazia antes de ser excluída (10 minutos por padrão)
+    ROOM_EMPTY_TIMEOUT: z.coerce.number().int().min(10).max(86_400).default(600),
     // mediasoup: IP onde o servidor escuta e IP que os navegadores usam para chegar até ele
     MEDIASOUP_LISTEN_IP: z.union([z.ipv4(), z.ipv6()]).default('0.0.0.0'),
     MEDIASOUP_ANNOUNCED_IP: z.string().trim().min(1).optional(),
