@@ -6,6 +6,7 @@ import type {
   MediaResult,
   ProducePayload,
   ProducerInfo,
+  QualityTarget,
   RtpCapabilities,
   SetPreferredLayersPayload,
   TransportInfo,
@@ -51,7 +52,7 @@ export interface ServerToClientEvents {
   'room:session-replaced': () => void;
   'media:producer-added': (producer: ProducerInfo) => void;
   'media:producer-closed': (payload: { producerId: string }) => void;
-  'media:producer-quality': (payload: { producerId: string; quality: VideoQuality }) => void;
+  'media:producer-quality': (payload: { producerId: string; quality: VideoQuality; target: QualityTarget }) => void;
 }
 
 /** Eventos que o navegador envia para o servidor */

@@ -6,6 +6,7 @@ import type {
   MediaResult,
   ProducePayload,
   ProducerInfo,
+  QualityTarget,
   RtpCapabilities,
   TransportDirection,
   TransportInfo,
@@ -74,8 +75,10 @@ export class MediaSignaling {
     await this.request(() => this.withTimeout().emitWithAck('media:set-preferred-layers', { consumerId, spatialLayer }));
   }
 
-  async updateProducerQuality(producerId: string, quality: VideoQuality): Promise<void> {
-    await this.request(() => this.withTimeout().emitWithAck('media:update-producer-quality', { producerId, quality }));
+  async updateProducerQuality(producerId: string, quality: VideoQuality, target: QualityTarget): Promise<void> {
+    await this.request(() =>
+      this.withTimeout().emitWithAck('media:update-producer-quality', { producerId, quality, target }),
+    );
   }
 
   listProducers(): Promise<ProducerInfo[]> {

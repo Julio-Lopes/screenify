@@ -24,13 +24,21 @@ export interface VideoQuality {
   frameRate: number;
 }
 
+/** Qualidade escolhida por quem transmite no menu (1080p / 60 FPS, por exemplo) */
+export interface QualityTarget {
+  height: number;
+  frameRate: number;
+}
+
 export interface ProducerInfo {
   producerId: string;
   userId: string;
   kind: MediaKind;
   source: MediaSource;
-  /** Nulo até quem transmite informar; muda quando a qualidade ou a janela compartilhada muda */
+  /** O que o navegador de quem transmite está capturando de fato; pode oscilar */
   quality: VideoQuality | null;
+  /** A qualidade escolhida no menu; estável, é por ela que as opções de quem assiste são nomeadas */
+  target: QualityTarget | null;
 }
 
 export interface ConsumerInfo {
@@ -76,11 +84,13 @@ export interface ProducePayload {
   rtpParameters: RtpParameters;
   source: MediaSource;
   quality?: VideoQuality;
+  target?: QualityTarget;
 }
 
 export interface UpdateProducerQualityPayload {
   producerId: string;
   quality: VideoQuality;
+  target: QualityTarget;
 }
 
 export interface ConsumePayload {

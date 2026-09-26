@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { DEFAULT_SHARE_PRESET, HIGHEST_LAYER, type SharePresetId, type SpatialLayer } from '../media/quality-presets';
+import { DEFAULT_SHARE_PRESET, type SharePresetId } from '../media/quality-presets';
 
 interface PreferencesState {
   sharePreset: SharePresetId;
-  /** Teto de qualidade de quem assiste: 2 é a resolução cheia da live, 0 a menor camada */
-  viewLayer: SpatialLayer;
+  /** Resolução escolhida por quem assiste (720 para 720p); null é "a maior da live" */
+  viewMaxHeight: number | null;
   setSharePreset: (preset: SharePresetId) => void;
-  setViewLayer: (layer: SpatialLayer) => void;
+  setViewMaxHeight: (height: number | null) => void;
 }
 
 /** Escolhas de qualidade lembradas entre visitas */
@@ -15,17 +15,17 @@ export const usePreferencesStore = create<PreferencesState>()(
   persist(
     (set) => ({
       sharePreset: DEFAULT_SHARE_PRESET,
-      viewLayer: HIGHEST_LAYER,
+      viewMaxHeight: null,
       setSharePreset: (sharePreset) => set({ sharePreset }),
-      setViewLayer: (viewLayer) => set({ viewLayer }),
+      setViewMaxHeight: (viewMaxHeight) => set({ viewMaxHeight }),
     }),
     {
       name: 'screenify:preferences',
-      version: 2,
-      // A versão 1 guardava a qualidade de quem assiste como "auto/medium/low": volta ao padrão
+      version: 3,
+      // Versões anteriores guardavam a escolha de quem assiste em outros formatos: volta ao padrão
       migrate: (persisted) => {
         const previous = persisted as Partial<PreferencesState> | undefined;
-        return { sharePreset: previous?.sharePreset ?? DEFAULT_SHARE_PRESET, viewLayer: HIGHEST_LAYER };
+        return { sharePreset: previous?.sharePreset ?? DEFAULT_SHARE_PRESET, viewMaxHeight: null };
       },
     },
   ),

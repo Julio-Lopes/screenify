@@ -1,4 +1,4 @@
-import type { TransportDirection, VideoQuality } from '@screenify/shared';
+import type { QualityTarget, TransportDirection, VideoQuality } from '@screenify/shared';
 import { Device, type types } from 'mediasoup-client';
 import type { MediaSignaling } from './media-signaling';
 
@@ -112,10 +112,11 @@ export class MediaSession {
     if (direction === 'send') {
       // Cada transport.produce() do navegador vira um Producer no servidor
       transport.on('produce', ({ kind, rtpParameters, appData }, callback, errback) => {
-        // A qualidade real da captura vai junto, para quem assiste montar o menu de camadas
+        // A qualidade real e a escolhida vão junto, para quem assiste montar o menu de camadas
         const quality = isVideoQuality(appData.quality) ? appData.quality : undefined;
+        const target = isQualityTarget(appData.target) ? appData.target : undefined;
         this.signaling
-          .produce({ transportId: transport.id, kind, rtpParameters, source: 'screen', quality })
+          .produce({ transportId: transport.id, kind, rtpParameters, source: 'screen', quality, target })
           .then(({ producerId }) => callback({ id: producerId }))
           .catch((error: unknown) => errback(toError(error)));
       });
@@ -130,17 +131,19 @@ export class MediaSession {
   }
 }
 
-function isVideoQuality(value: unknown): value is VideoQuality {
+function isQualityTarget(value: unknown): value is QualityTarget {
   return (
     typeof value === 'object' &&
     value !== null &&
-    'width' in value &&
     'height' in value &&
     'frameRate' in value &&
-    typeof value.width === 'number' &&
     typeof value.height === 'number' &&
     typeof value.frameRate === 'number'
   );
+}
+
+function isVideoQuality(value: unknown): value is VideoQuality {
+  return isQualityTarget(value) && 'width' in value && typeof value.width === 'number';
 }
 
 function toError(error: unknown): Error {

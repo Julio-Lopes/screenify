@@ -1,4 +1,4 @@
-import { LoaderCircle, Maximize, Minimize } from 'lucide-react';
+import { LoaderCircle, Maximize, Minimize, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { LayerOption, SpatialLayer } from '../../media/quality-presets';
 import { QualityMenu } from '../ui/QualityMenu';
@@ -9,11 +9,20 @@ interface RemoteScreenProps {
   /** Resoluções da live, da maior para a menor; vazio quando não há o que escolher */
   layers: LayerOption[];
   selectedLayer: SpatialLayer;
+  /** Altura que a resolução escolhida tem de verdade; chegando bem menos, a conexão está limitando */
+  expectedHeight: number | null;
   onLayerChange: (layer: SpatialLayer) => void;
 }
 
 /** A tela de quem está transmitindo, como chega para quem assiste */
-export function RemoteScreen({ stream, sharerName, layers, selectedLayer, onLayerChange }: RemoteScreenProps) {
+export function RemoteScreen({
+  stream,
+  sharerName,
+  layers,
+  selectedLayer,
+  expectedHeight,
+  onLayerChange,
+}: RemoteScreenProps) {
   // O menu trabalha com ids em texto; a camada é um número
   const options = layers.map((option) => ({ id: String(option.layer), label: option.label }));
   const selectedLabel = layers.find((option) => option.layer === selectedLayer)?.label;
@@ -85,11 +94,20 @@ export function RemoteScreen({ stream, sharerName, layers, selectedLayer, onLaye
       <div className="absolute right-3 bottom-3 left-3 flex items-end justify-between gap-2">
         <div className="flex items-center gap-2 rounded-md bg-background/80 px-2.5 py-1.5 text-caption backdrop-blur">
           <span className="text-text-secondary">Tela de {sharerName}</span>
-          {size && (
-            <span className="font-mono text-text-primary tabular-nums" title="Resolução que está chegando até você">
-              {size.width}×{size.height}
-            </span>
-          )}
+          {size &&
+            (expectedHeight !== null && size.height < expectedHeight * 0.9 ? (
+              <span
+                className="flex items-center gap-1.5 font-mono text-warning-text tabular-nums"
+                title="Abaixo da resolução escolhida: sua conexão não está dando conta agora. Volta sozinha quando melhorar."
+              >
+                <TriangleAlert size={12} aria-hidden />
+                {size.width}×{size.height}
+              </span>
+            ) : (
+              <span className="font-mono text-text-primary tabular-nums" title="Resolução que está chegando até você">
+                {size.width}×{size.height}
+              </span>
+            ))}
         </div>
 
         <div className="flex items-center gap-2">
@@ -102,7 +120,7 @@ export function RemoteScreen({ stream, sharerName, layers, selectedLayer, onLaye
                 if (option) onLayerChange(option.layer);
               }}
               triggerLabel={selectedLabel}
-              note="É um limite máximo: se a sua conexão não aguentar, a qualidade baixa sozinha."
+              note="A resolução escolhida é mantida. Só baixa se a sua conexão não aguentar, para o vídeo não travar."
             />
           )}
           <button

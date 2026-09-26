@@ -1,4 +1,4 @@
-import type { ProducerInfo, VideoQuality } from '@screenify/shared';
+import type { ProducerInfo, QualityTarget, VideoQuality } from '@screenify/shared';
 import { useEffect, useState } from 'react';
 import type { RoomMedia } from './useMediaSession';
 import type { AppSocket } from '../services/socket';
@@ -16,8 +16,12 @@ export function useRoomProducers(socket: AppSocket, media: RoomMedia | null): Pr
     const onClosed = ({ producerId }: { producerId: string }) =>
       setProducers((list) => list.filter((p) => p.producerId !== producerId));
 
-    const onQuality = ({ producerId, quality }: { producerId: string; quality: VideoQuality }) =>
-      setProducers((list) => list.map((p) => (p.producerId === producerId ? { ...p, quality } : p)));
+    const onQuality = (update: { producerId: string; quality: VideoQuality; target: QualityTarget }) =>
+      setProducers((list) =>
+        list.map((p) =>
+          p.producerId === update.producerId ? { ...p, quality: update.quality, target: update.target } : p,
+        ),
+      );
 
     socket.on('media:producer-added', onAdded);
     socket.on('media:producer-closed', onClosed);

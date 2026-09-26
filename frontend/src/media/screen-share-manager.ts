@@ -1,4 +1,4 @@
-import type { VideoQuality } from '@screenify/shared';
+import type { QualityTarget, VideoQuality } from '@screenify/shared';
 import type { types } from 'mediasoup-client';
 import { MediaRequestError, type MediaSignaling } from './media-signaling';
 import type { MediaSession } from './media-session';
@@ -67,6 +67,12 @@ export class ScreenShareManager {
     };
   }
 
+  /** A qualidade escolhida no menu, que nomeia as opções de quem assiste */
+  private getTarget(): QualityTarget {
+    const preset = getSharePreset(this.presetId);
+    return { height: preset.height, frameRate: preset.frameRate };
+  }
+
   async start(): Promise<void> {
     if (this.state.status !== 'idle' || this.disposed) return;
     this.setState({ status: 'starting' });
@@ -109,7 +115,7 @@ export class ScreenShareManager {
         track,
         encodings: buildEncodings(preset),
         codecOptions: { videoGoogleStartBitrate: 1000 },
-        appData: { quality: this.getQuality() ?? undefined },
+        appData: { quality: this.getQuality() ?? undefined, target: this.getTarget() },
       });
 
       if (transport.connectionState === 'connected') {
@@ -139,6 +145,8 @@ export class ScreenShareManager {
       this.listeners.onError('O navegador não aceitou essa qualidade para a tela escolhida.');
     }
     this.refreshQuality();
+    // Mesmo que a captura não mude de tamanho, a qualidade escolhida mudou: a sala precisa saber
+    this.publishQuality();
   }
 
   async stop(): Promise<void> {
@@ -215,11 +223,15 @@ export class ScreenShareManager {
 
     if (changed) {
       this.setState({ ...this.state, quality: next });
+      this.publishQuality();
+    }
+  }
 
-      // Avisa a sala: o menu de camadas de quem assiste depende da resolução real
-      if (next && this.producer) {
-        void this.signaling.updateProducerQuality(this.producer.id, next).catch(() => undefined);
-      }
+  /** Informa a sala sobre a qualidade real e a escolhida */
+  private publishQuality(): void {
+    const quality = this.getQuality();
+    if (quality && this.producer) {
+      void this.signaling.updateProducerQuality(this.producer.id, quality, this.getTarget()).catch(() => undefined);
     }
   }
 

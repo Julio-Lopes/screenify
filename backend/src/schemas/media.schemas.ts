@@ -26,6 +26,11 @@ export const videoQualitySchema = z.object({
   frameRate: z.number().min(0).max(240),
 });
 
+export const qualityTargetSchema = z.object({
+  height: z.int().min(1).max(4320),
+  frameRate: z.number().min(1).max(240),
+});
+
 export const produceSchema = z.object({
   transportId: mediasoupId,
   kind: z.enum(['audio', 'video']),
@@ -34,11 +39,13 @@ export const produceSchema = z.object({
   }),
   source: z.literal('screen'),
   quality: videoQualitySchema.optional(),
+  target: qualityTargetSchema.optional(),
 });
 
 export const updateProducerQualitySchema = z.object({
   producerId: mediasoupId,
   quality: videoQualitySchema,
+  target: qualityTargetSchema,
 });
 
 export const producerIdSchema = z.object({

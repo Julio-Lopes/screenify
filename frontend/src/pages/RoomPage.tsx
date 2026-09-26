@@ -21,6 +21,7 @@ import { useRoomConnection } from '../hooks/useRoomConnection';
 import { useRoomProducers } from '../hooks/useRoomProducers';
 import { useScreenShare } from '../hooks/useScreenShare';
 import { useScreenView } from '../hooks/useScreenView';
+import { getSharePreset } from '../media/quality-presets';
 import { ApiError } from '../services/api';
 import { deleteRoom } from '../services/rooms';
 import type { AppSocket } from '../services/socket';
@@ -233,9 +234,14 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
   const sharingUserId = selfSharing ? self.userId : (screenProducer?.userId ?? null);
   const isLive = share.state.status === 'live' || otherSharer !== null;
   const view = useScreenView(media, screenProducer);
-  // Qualidade real da live para os badges do cabeçalho: a própria, ou a informada por quem transmite
-  const liveQuality =
-    share.state.status === 'live' ? share.state.quality : otherSharer ? (screenProducer?.quality ?? null) : null;
+  // Badges do cabeçalho: a qualidade escolhida por quem transmite (estável). A real aparece no player
+  const sharePreset = getSharePreset(share.preset);
+  const liveTarget =
+    share.state.status === 'live'
+      ? { height: sharePreset.height, frameRate: sharePreset.frameRate }
+      : otherSharer
+        ? (screenProducer?.target ?? null)
+        : null;
 
   async function copyLink() {
     try {
@@ -271,7 +277,7 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
             <Lock size={14} className="shrink-0 text-text-muted" aria-label="Sala protegida por senha" />
           )}
           {isLive && <LiveBadge />}
-          {isLive && liveQuality && <QualityBadges quality={liveQuality} />}
+          {isLive && liveTarget && <QualityBadges quality={liveTarget} />}
         </div>
         <AvatarGroup participants={participants} />
         <ShareScreenButton
@@ -325,6 +331,7 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
                   sharerName={otherSharer.displayName}
                   layers={view.layers}
                   selectedLayer={view.selectedLayer}
+                  expectedHeight={view.expectedHeight}
                   onLayerChange={view.setLayer}
                 />
               ) : view.state.status === 'error' ? (

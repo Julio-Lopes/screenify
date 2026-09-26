@@ -98,10 +98,20 @@ export function layerOptions(height: number): LayerOption[] {
     .map((option) => ({ ...option, label: `${option.height}p` }));
 }
 
-/** A camada efetiva para uma preferência: a preferida, ou a mais próxima abaixo dela que exista */
-export function effectiveLayer(preferred: SpatialLayer, options: LayerOption[]): SpatialLayer {
-  // As opções vêm da maior para a menor: a primeira que não passa do teto é a certa
-  return options.find((option) => option.layer <= preferred)?.layer ?? options.at(-1)?.layer ?? HIGHEST_LAYER;
+/**
+ * A camada para a resolução escolhida por quem assiste: a maior que não passa dela.
+ * Sem escolha (null), a maior da live. Se a live for menor que tudo, a menor que existir.
+ */
+export function layerForMaxHeight(maxHeight: number | null, options: LayerOption[]): SpatialLayer {
+  if (maxHeight === null) return options[0]?.layer ?? HIGHEST_LAYER;
+  // As opções vêm da maior para a menor: a primeira que cabe no limite é a certa
+  return options.find((option) => option.height <= maxHeight)?.layer ?? options.at(-1)?.layer ?? HIGHEST_LAYER;
+}
+
+/** Altura que a camada tem de fato, a partir do que quem transmite está capturando agora */
+export function actualLayerHeight(capturedHeight: number, layer: SpatialLayer): number {
+  const scale = LAYERS.find((entry) => entry.layer === layer)?.scale ?? 1;
+  return Math.round(capturedHeight / scale);
 }
 
 export function qualityLabel(quality: { height: number; frameRate: number }): string {

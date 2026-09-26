@@ -11,6 +11,7 @@ export type {
   MediaSource,
   ProducePayload,
   ProducerInfo,
+  QualityTarget,
   RtpCapabilities,
   RtpParameters,
   SetPreferredLayersPayload,

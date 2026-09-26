@@ -1,7 +1,13 @@
 import type { ProducerInfo } from '@screenify/shared';
 import type { types } from 'mediasoup-client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { effectiveLayer, layerOptions, type LayerOption, type SpatialLayer } from '../media/quality-presets';
+import {
+  actualLayerHeight,
+  layerForMaxHeight,
+  layerOptions,
+  type LayerOption,
+  type SpatialLayer,
+} from '../media/quality-presets';
 import { usePreferencesStore } from '../stores/preferences.store';
 import type { RoomMedia } from './useMediaSession';
 
@@ -16,6 +22,8 @@ interface ScreenView {
   /** Resoluções que existem na live agora, da maior para a menor (vazio sem simulcast) */
   layers: LayerOption[];
   selectedLayer: SpatialLayer;
+  /** Altura que a camada escolhida tem de verdade agora; se chegar menos, a conexão está limitando */
+  expectedHeight: number | null;
   setLayer: (layer: SpatialLayer) => void;
   retry: () => void;
 }
@@ -24,11 +32,14 @@ interface ScreenView {
 export function useScreenView(media: RoomMedia | null, producer: ProducerInfo | null): ScreenView {
   const [state, setState] = useState<ScreenViewState>({ status: 'idle' });
   const [attempt, setAttempt] = useState(0);
-  const preferredLayer = usePreferencesStore((s) => s.viewLayer);
-  const savePreferredLayer = usePreferencesStore((s) => s.setViewLayer);
+  const preferredHeight = usePreferencesStore((s) => s.viewMaxHeight);
+  const savePreferredHeight = usePreferencesStore((s) => s.setViewMaxHeight);
 
   const producerId = producer?.producerId ?? null;
-  const liveHeight = producer?.quality?.height ?? null;
+  // O menu é nomeado pela qualidade escolhida por quem transmite, que é estável;
+  // a captura real pode oscilar (ao compartilhar uma aba, o Chrome ajusta a resolução sozinho)
+  const menuHeight = producer?.target?.height ?? producer?.quality?.height ?? null;
+  const capturedHeight = producer?.quality?.height ?? null;
 
   useEffect(() => {
     if (!media || !producerId) {
@@ -80,8 +91,9 @@ export function useScreenView(media: RoomMedia | null, producer: ProducerInfo | 
   }, [media, producerId, attempt]);
 
   const simulcast = state.status === 'playing' && state.simulcast;
-  const layers = useMemo(() => (simulcast && liveHeight ? layerOptions(liveHeight) : []), [simulcast, liveHeight]);
-  const selectedLayer = layers.length > 0 ? effectiveLayer(preferredLayer, layers) : preferredLayer;
+  const layers = useMemo(() => (simulcast && menuHeight ? layerOptions(menuHeight) : []), [simulcast, menuHeight]);
+  const selectedLayer = layerForMaxHeight(preferredHeight, layers);
+  const expectedHeight = capturedHeight ? actualLayerHeight(capturedHeight, selectedLayer) : null;
   const consumerId = state.status === 'playing' ? state.consumerId : null;
 
   // Envia o teto ao servidor quando a transmissão começa e sempre que ele muda:
@@ -91,8 +103,15 @@ export function useScreenView(media: RoomMedia | null, producer: ProducerInfo | 
     void media.signaling.setPreferredLayers(consumerId, selectedLayer).catch(() => undefined);
   }, [media, consumerId, simulcast, selectedLayer]);
 
-  const setLayer = useCallback((layer: SpatialLayer) => savePreferredLayer(layer), [savePreferredLayer]);
+  // Guarda a resolução (720), não a posição no menu: se a live mudar de qualidade, 720p continua 720p
+  const setLayer = useCallback(
+    (layer: SpatialLayer) => {
+      const option = layers.find((entry) => entry.layer === layer);
+      if (option) savePreferredHeight(option.height);
+    },
+    [layers, savePreferredHeight],
+  );
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
-  return { state, layers, selectedLayer, setLayer, retry };
+  return { state, layers, selectedLayer, expectedHeight, setLayer, retry };
 }

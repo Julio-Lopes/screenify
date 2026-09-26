@@ -152,7 +152,7 @@ describe('Producer', () => {
     const producerId = await shareScreen(hostClient);
 
     const [producer] = await added;
-    expect(producer).toEqual({ producerId, userId: host.user.id, kind: 'video', source: 'screen', quality: null });
+    expect(producer).toEqual({ producerId, userId: host.user.id, kind: 'video', source: 'screen', quality: null, target: null });
 
     const list = await guestClient.emitWithAck('media:list-producers');
     expect(list).toEqual({ ok: true, data: [producer] });
@@ -315,6 +315,7 @@ describe('Simulcast', () => {
 
 describe('Qualidade informada por quem transmite', () => {
   const FULL_HD = { width: 1920, height: 1080, frameRate: 30 };
+  const TARGET_1080P = { height: 1080, frameRate: 30 };
 
   it('chega a quem assiste na criação, nas atualizações e na lista', async () => {
     const { host, guest, room } = await setup();
@@ -331,19 +332,30 @@ describe('Qualidade informada por quem transmite', () => {
       rtpParameters: VP8_SIMULCAST_RTP_PARAMETERS,
       source: 'screen',
       quality: FULL_HD,
+      target: TARGET_1080P,
     });
     if (!produced.ok) throw new Error(produced.message);
-    expect((await added)[0].quality).toEqual(FULL_HD);
+    expect((await added)[0]).toMatchObject({ quality: FULL_HD, target: TARGET_1080P });
 
-    const HD = { width: 1280, height: 720, frameRate: 30 };
+    // A captura oscilou (comum ao compartilhar uma aba), mas a qualidade escolhida continua 1080p
+    const OSCILLATED = { width: 1518, height: 854, frameRate: 60 };
+    const TARGET_1080P60 = { height: 1080, frameRate: 60 };
     const changed = nextEvent(guestClient, 'media:producer-quality');
     expect(
-      await hostClient.emitWithAck('media:update-producer-quality', { producerId: produced.data.producerId, quality: HD }),
+      await hostClient.emitWithAck('media:update-producer-quality', {
+        producerId: produced.data.producerId,
+        quality: OSCILLATED,
+        target: TARGET_1080P60,
+      }),
     ).toEqual({ ok: true, data: null });
-    expect((await changed)[0]).toEqual({ producerId: produced.data.producerId, quality: HD });
+    expect((await changed)[0]).toEqual({
+      producerId: produced.data.producerId,
+      quality: OSCILLATED,
+      target: TARGET_1080P60,
+    });
 
     const list = await guestClient.emitWithAck('media:list-producers');
-    expect(list.ok && list.data[0]?.quality).toEqual(HD);
+    expect(list.ok && list.data[0]).toMatchObject({ quality: OSCILLATED, target: TARGET_1080P60 });
   });
 
   it('só quem transmite pode informar a qualidade, e com valores válidos', async () => {
@@ -353,13 +365,14 @@ describe('Qualidade informada por quem transmite', () => {
     const producerId = await shareScreen(hostClient);
 
     expect(
-      await guestClient.emitWithAck('media:update-producer-quality', { producerId, quality: FULL_HD }),
+      await guestClient.emitWithAck('media:update-producer-quality', { producerId, quality: FULL_HD, target: TARGET_1080P }),
     ).toMatchObject({ ok: false, error: 'PRODUCER_NOT_FOUND' });
 
     expect(
       await hostClient.emitWithAck('media:update-producer-quality', {
         producerId,
         quality: { width: -1, height: 1080, frameRate: 30 },
+        target: TARGET_1080P,
       }),
     ).toMatchObject({ ok: false, error: 'INVALID_PAYLOAD' });
   });

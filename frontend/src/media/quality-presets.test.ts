@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildEncodings, effectiveLayer, getSharePreset, layerOptions, SHARE_PRESETS } from './quality-presets';
+import {
+  actualLayerHeight,
+  buildEncodings,
+  getSharePreset,
+  layerForMaxHeight,
+  layerOptions,
+  SHARE_PRESETS,
+} from './quality-presets';
 
 describe('buildEncodings', () => {
   it('gera três camadas de simulcast: 1/3, 2/3 e a resolução cheia', () => {
@@ -41,13 +48,32 @@ describe('layerOptions', () => {
   });
 });
 
-describe('effectiveLayer', () => {
-  it('usa a camada preferida quando ela existe', () => {
-    expect(effectiveLayer(1, layerOptions(1080))).toBe(1);
+describe('layerForMaxHeight', () => {
+  it('sem escolha, fica com a maior resolução da live', () => {
+    expect(layerForMaxHeight(null, layerOptions(1080))).toBe(2);
   });
 
-  it('cai para a menor camada existente quando a preferida não existe na live', () => {
-    // Numa live 480p a camada 0 (160p) está desligada: quem pediu a menor recebe a menor que existe
-    expect(effectiveLayer(0, layerOptions(480))).toBe(1);
+  it('mantém a resolução escolhida quando quem transmite muda de qualidade', () => {
+    // Escolheu 720p numa live 1080p...
+    expect(layerForMaxHeight(720, layerOptions(1080))).toBe(1);
+    // ...e a live passou a 720p: continua em 720p, agora a camada cheia
+    expect(layerForMaxHeight(720, layerOptions(720))).toBe(2);
+  });
+
+  it('usa a maior camada que não passa do limite escolhido', () => {
+    // 480p escolhido numa live 1080p (360, 720, 1080): fica em 360p
+    expect(layerForMaxHeight(480, layerOptions(1080))).toBe(0);
+  });
+
+  it('usa a menor que existir quando a live é menor que tudo', () => {
+    expect(layerForMaxHeight(200, layerOptions(480))).toBe(1);
+  });
+});
+
+describe('actualLayerHeight', () => {
+  it('calcula a altura real de cada camada a partir da captura', () => {
+    expect(actualLayerHeight(854, 2)).toBe(854);
+    expect(actualLayerHeight(854, 1)).toBe(569);
+    expect(actualLayerHeight(854, 0)).toBe(285);
   });
 });

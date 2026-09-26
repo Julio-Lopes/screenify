@@ -88,7 +88,7 @@ export function registerMediaHandlers(io: AppServer, socket: AppSocket, media: M
 
   socket.on('media:produce', (payload: ProducePayload, ack) =>
     respond(socket, 'produce', ack, async () => {
-      const { transportId, kind, source, quality } = parse(produceSchema, payload);
+      const { transportId, kind, source, quality, target } = parse(produceSchema, payload);
       const producer = await (await roomMedia()).produce(
         userId,
         transportId,
@@ -96,6 +96,7 @@ export function registerMediaHandlers(io: AppServer, socket: AppSocket, media: M
         payload.rtpParameters,
         source,
         quality ?? null,
+        target ?? null,
       );
 
       if (socket.data.roomId) {
@@ -142,11 +143,11 @@ export function registerMediaHandlers(io: AppServer, socket: AppSocket, media: M
 
   socket.on('media:update-producer-quality', (payload, ack) =>
     respond(socket, 'update-producer-quality', ack, async () => {
-      const { producerId, quality } = parse(updateProducerQualitySchema, payload);
-      (await roomMedia()).updateProducerQuality(userId, producerId, quality);
+      const { producerId, quality, target } = parse(updateProducerQualitySchema, payload);
+      (await roomMedia()).updateProducerQuality(userId, producerId, quality, target);
 
       if (socket.data.roomId) {
-        socket.to(roomChannel(socket.data.roomId)).emit('media:producer-quality', { producerId, quality });
+        socket.to(roomChannel(socket.data.roomId)).emit('media:producer-quality', { producerId, quality, target });
       }
       return null;
     }),

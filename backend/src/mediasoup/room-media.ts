@@ -4,6 +4,7 @@ import type {
   MediaKind,
   MediaSource,
   ProducerInfo,
+  QualityTarget,
   RtpCapabilities,
   RtpParameters,
   TransportDirection,
@@ -32,6 +33,7 @@ interface ProducerAppData extends types.AppData {
   userId: string;
   source: MediaSource;
   quality: VideoQuality | null;
+  target: QualityTarget | null;
 }
 
 /** Tudo de mídia que pertence a uma pessoa na sala */
@@ -117,6 +119,7 @@ export class RoomMedia {
     rtpParameters: RtpParameters,
     source: MediaSource,
     quality: VideoQuality | null,
+    target: QualityTarget | null,
   ): Promise<ProducerInfo> {
     const transport = this.getTransport(userId, transportId);
 
@@ -132,7 +135,7 @@ export class RoomMedia {
     const producer = await transport.produce<ProducerAppData>({
       kind,
       rtpParameters,
-      appData: { userId, source, quality },
+      appData: { userId, source, quality, target },
     });
 
     const peer = this.getOrCreatePeer(userId);
@@ -167,12 +170,13 @@ export class RoomMedia {
     return this.toProducerInfo(producer);
   }
 
-  updateProducerQuality(userId: string, producerId: string, quality: VideoQuality): void {
+  updateProducerQuality(userId: string, producerId: string, quality: VideoQuality, target: QualityTarget): void {
     const producer = this.peers.get(userId)?.producers.get(producerId);
     if (!producer) {
       throw new MediaError('PRODUCER_NOT_FOUND', 'Transmissão não encontrada');
     }
     producer.appData.quality = quality;
+    producer.appData.target = target;
   }
 
   closeProducer(userId: string, producerId: string): void {
@@ -293,6 +297,7 @@ export class RoomMedia {
       kind: producer.kind,
       source: producer.appData.source,
       quality: producer.appData.quality,
+      target: producer.appData.target,
     };
   }
 }
