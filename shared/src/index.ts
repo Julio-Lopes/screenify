@@ -13,6 +13,7 @@ export type {
   ProducerInfo,
   RtpCapabilities,
   RtpParameters,
+  SetPreferredLayersPayload,
   TransportDirection,
   TransportInfo,
 } from './types/media.js';

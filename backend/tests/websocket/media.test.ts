@@ -4,7 +4,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { env } from '../../src/config/env.js';
 import { createGuest, createRoom } from '../helpers/api.js';
 import { resetDatabase } from '../helpers/database.js';
-import { FAKE_DTLS_PARAMETERS, VP8_RTP_PARAMETERS } from '../helpers/media-fixtures.js';
+import {
+  FAKE_DTLS_PARAMETERS,
+  VP8_RTP_PARAMETERS,
+  VP8_SIMULCAST_RTP_PARAMETERS,
+} from '../helpers/media-fixtures.js';
 import { joinRoom, nextEvent, startTestServer, type TestClient, type TestServer } from '../helpers/test-server.js';
 
 let server: TestServer;
@@ -37,14 +41,14 @@ async function setup() {
 }
 
 /** Cria o transport de envio e publica uma tela; devolve o id do producer */
-async function shareScreen(client: TestClient): Promise<string> {
+async function shareScreen(client: TestClient, rtpParameters = VP8_RTP_PARAMETERS): Promise<string> {
   const transport = await client.emitWithAck('media:create-transport', { direction: 'send' });
   if (!transport.ok) throw new Error(transport.message);
 
   const produced = await client.emitWithAck('media:produce', {
     transportId: transport.data.id,
     kind: 'video',
-    rtpParameters: VP8_RTP_PARAMETERS,
+    rtpParameters,
     source: 'screen',
   });
   if (!produced.ok) throw new Error(produced.message);
@@ -262,5 +266,48 @@ describe('Consumer', () => {
       ok: false,
       error: 'CONSUMER_NOT_FOUND',
     });
+  });
+});
+
+describe('Simulcast', () => {
+  async function watch(viewer: TestClient, producerId: string) {
+    const capabilities = await viewer.emitWithAck('media:get-rtp-capabilities');
+    if (!capabilities.ok) throw new Error(capabilities.message);
+    await viewer.emitWithAck('media:create-transport', { direction: 'recv' });
+    const consumer = await viewer.emitWithAck('media:consume', { producerId, rtpCapabilities: capabilities.data });
+    if (!consumer.ok) throw new Error(consumer.message);
+    return consumer.data;
+  }
+
+  it('entrega camadas escolhíveis quando a transmissão é simulcast', async () => {
+    const { host, guest, room } = await setup();
+    const hostClient = await enter(room, host.token);
+    const guestClient = await enter(room, guest.token);
+    const producerId = await shareScreen(hostClient, VP8_SIMULCAST_RTP_PARAMETERS);
+
+    const consumer = await watch(guestClient, producerId);
+    expect(consumer.simulcast).toBe(true);
+
+    for (const spatialLayer of [0, 1, 2]) {
+      expect(
+        await guestClient.emitWithAck('media:set-preferred-layers', { consumerId: consumer.id, spatialLayer }),
+      ).toEqual({ ok: true, data: null });
+    }
+    expect(
+      await guestClient.emitWithAck('media:set-preferred-layers', { consumerId: consumer.id, spatialLayer: 7 }),
+    ).toMatchObject({ ok: false, error: 'INVALID_PAYLOAD' });
+  });
+
+  it('recusa escolher camada numa transmissão de qualidade única', async () => {
+    const { host, guest, room } = await setup();
+    const hostClient = await enter(room, host.token);
+    const guestClient = await enter(room, guest.token);
+    const producerId = await shareScreen(hostClient);
+
+    const consumer = await watch(guestClient, producerId);
+    expect(consumer.simulcast).toBe(false);
+    expect(
+      await guestClient.emitWithAck('media:set-preferred-layers', { consumerId: consumer.id, spatialLayer: 0 }),
+    ).toMatchObject({ ok: false, error: 'INVALID_PAYLOAD' });
   });
 });

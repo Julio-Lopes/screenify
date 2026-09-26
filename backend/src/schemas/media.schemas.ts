@@ -43,3 +43,8 @@ export const consumeSchema = z.object({
 export const consumerIdSchema = z.object({
   consumerId: mediasoupId,
 });
+
+export const setPreferredLayersSchema = z.object({
+  consumerId: mediasoupId,
+  spatialLayer: z.int().min(0).max(2),
+});

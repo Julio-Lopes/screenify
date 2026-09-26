@@ -16,6 +16,7 @@ import {
   createTransportSchema,
   produceSchema,
   producerIdSchema,
+  setPreferredLayersSchema,
 } from '../schemas/media.schemas.js';
 import { logger } from '../utils/logger.js';
 import { roomChannel, type AppServer, type AppSocket } from './types.js';
@@ -119,6 +120,14 @@ export function registerMediaHandlers(io: AppServer, socket: AppSocket, media: M
     respond(socket, 'resume-consumer', ack, async () => {
       const { consumerId } = parse(consumerIdSchema, payload);
       await (await roomMedia()).resumeConsumer(userId, consumerId);
+      return null;
+    }),
+  );
+
+  socket.on('media:set-preferred-layers', (payload, ack) =>
+    respond(socket, 'set-preferred-layers', ack, async () => {
+      const { consumerId, spatialLayer } = parse(setPreferredLayersSchema, payload);
+      await (await roomMedia()).setPreferredLayers(userId, consumerId, spatialLayer);
       return null;
     }),
   );

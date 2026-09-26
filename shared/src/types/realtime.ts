@@ -7,6 +7,7 @@ import type {
   ProducePayload,
   ProducerInfo,
   RtpCapabilities,
+  SetPreferredLayersPayload,
   TransportInfo,
 } from './media.js';
 import type { RoomSummary } from './room.js';
@@ -62,6 +63,7 @@ export interface ClientToServerEvents {
   'media:list-producers': (ack: (result: MediaResult<ProducerInfo[]>) => void) => void;
   'media:consume': (payload: ConsumePayload, ack: (result: MediaResult<ConsumerInfo>) => void) => void;
   'media:resume-consumer': (payload: { consumerId: string }, ack: (result: MediaResult<null>) => void) => void;
+  'media:set-preferred-layers': (payload: SetPreferredLayersPayload, ack: (result: MediaResult<null>) => void) => void;
 }
 
 /** Mensagem do erro de conexão quando o token de sessão é inválido ou ausente */

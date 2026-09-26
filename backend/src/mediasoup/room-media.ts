@@ -157,7 +157,10 @@ export class RoomMedia {
       }
     });
 
-    logger.info({ roomId: this.roomId, userId, kind, source }, '[MEDIASOUP] Producer created');
+    logger.info(
+      { roomId: this.roomId, userId, kind, source, layers: rtpParameters.encodings?.length ?? 1 },
+      '[MEDIASOUP] Producer created',
+    );
     return this.toProducerInfo(producer);
   }
 
@@ -196,6 +199,7 @@ export class RoomMedia {
       producerId,
       kind: consumer.kind,
       rtpParameters: toClientParameters(consumer.rtpParameters),
+      simulcast: consumer.type === 'simulcast',
     };
   }
 
@@ -205,6 +209,21 @@ export class RoomMedia {
       throw new MediaError('CONSUMER_NOT_FOUND', 'Recebimento não encontrado');
     }
     await consumer.resume();
+  }
+
+  /**
+   * Define a camada máxima que o espectador quer receber. Abaixo desse teto, o mediasoup continua
+   * escolhendo sozinho a melhor camada que a conexão dele aguenta.
+   */
+  async setPreferredLayers(userId: string, consumerId: string, spatialLayer: number): Promise<void> {
+    const consumer = this.peers.get(userId)?.consumers.get(consumerId);
+    if (!consumer) {
+      throw new MediaError('CONSUMER_NOT_FOUND', 'Recebimento não encontrado');
+    }
+    if (consumer.type !== 'simulcast') {
+      throw new MediaError('INVALID_PAYLOAD', 'Esta transmissão tem uma única qualidade');
+    }
+    await consumer.setPreferredLayers({ spatialLayer });
   }
 
   /** Fecha tudo de uma pessoa (saiu da sala ou abriu em outra aba) */

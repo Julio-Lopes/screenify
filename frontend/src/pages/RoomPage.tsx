@@ -310,10 +310,16 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
                 stream={share.state.stream}
                 quality={share.state.status === 'live' ? share.state.quality : null}
                 connecting={share.state.status === 'connecting'}
+                preset={share.preset}
+                onPresetChange={share.setPreset}
               />
                         ) : otherSharer ? (
               view.state.status === 'playing' ? (
-                <RemoteScreen stream={view.state.stream} sharerName={otherSharer.displayName} />
+                <RemoteScreen
+                  stream={view.state.stream}
+                  sharerName={otherSharer.displayName}
+                  quality={view.state.simulcast ? { selected: view.quality, onChange: view.setQuality } : null}
+                />
               ) : view.state.status === 'error' ? (
                 <StateMessage
                   icon={WifiOff}

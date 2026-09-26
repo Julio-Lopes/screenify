@@ -1,18 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { SharePresetId } from '../media/quality-presets';
 import { ScreenShareManager, type ScreenShareState } from '../media/screen-share-manager';
+import { usePreferencesStore } from '../stores/preferences.store';
 import { toast } from '../stores/toast.store';
 import type { RoomMedia } from './useMediaSession';
 
 interface ScreenShare {
   state: ScreenShareState;
   supported: boolean;
+  preset: SharePresetId;
   start: () => void;
   stop: () => void;
+  setPreset: (preset: SharePresetId) => void;
 }
 
 export function useScreenShare(media: RoomMedia | null): ScreenShare {
   const [state, setState] = useState<ScreenShareState>({ status: 'idle' });
   const [manager, setManager] = useState<ScreenShareManager | null>(null);
+  const preset = usePreferencesStore((s) => s.sharePreset);
+  const savePreset = usePreferencesStore((s) => s.setSharePreset);
   const mountedRef = useRef(true);
 
   // Declarado antes do efeito abaixo: ao desmontar, este cleanup roda primeiro
@@ -26,7 +32,8 @@ export function useScreenShare(media: RoomMedia | null): ScreenShare {
   useEffect(() => {
     if (!media) return;
 
-    const instance = new ScreenShareManager(media.session, media.signaling, {
+    // Lê a preferência do momento sem fazer dela uma dependência: trocar a qualidade não recria o manager
+    const instance = new ScreenShareManager(media.session, media.signaling, usePreferencesStore.getState().sharePreset, {
       onChange: setState,
       onError: (message) => toast('error', 'Não foi possível compartilhar a tela', message),
     });
@@ -47,6 +54,13 @@ export function useScreenShare(media: RoomMedia | null): ScreenShare {
 
   const start = useCallback(() => void manager?.start(), [manager]);
   const stop = useCallback(() => void manager?.stop(), [manager]);
+  const setPreset = useCallback(
+    (next: SharePresetId) => {
+      savePreset(next);
+      void manager?.setPreset(next);
+    },
+    [manager, savePreset],
+  );
 
-  return { state, supported: ScreenShareManager.isSupported(), start, stop };
+  return { state, supported: ScreenShareManager.isSupported(), preset, start, stop, setPreset };
 }

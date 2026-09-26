@@ -31,3 +31,17 @@ export const FAKE_DTLS_PARAMETERS: DtlsParameters = {
     },
   ],
 };
+
+export const VP8_SIMULCAST_RTP_PARAMETERS: RtpParameters = {
+  ...VP8_RTP_PARAMETERS,
+  headerExtensions: [
+    { uri: 'urn:ietf:params:rtp-hdrext:sdes:mid', id: 1 },
+    { uri: 'urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id', id: 2 },
+    { uri: 'urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-id', id: 3 },
+  ],
+  encodings: [
+    { rid: 'r0', scalabilityMode: 'L1T3' },
+    { rid: 'r1', scalabilityMode: 'L1T3' },
+    { rid: 'r2', scalabilityMode: 'L1T3' },
+  ],
+};

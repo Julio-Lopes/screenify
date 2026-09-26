@@ -51,7 +51,7 @@ export class MediaSession {
    * Assiste a uma transmissão: o servidor cria o Consumer pausado, o navegador monta o
    * receptor e só então o servidor libera o vídeo, para nenhum quadro chegar antes da hora.
    */
-  async consume(producerId: string): Promise<types.Consumer> {
+  async consume(producerId: string): Promise<{ consumer: types.Consumer; simulcast: boolean }> {
     const device = await this.getDevice();
     const transport = await this.getRecvTransport();
 
@@ -69,7 +69,7 @@ export class MediaSession {
       consumer.close();
       throw error;
     }
-    return consumer;
+    return { consumer, simulcast: info.simulcast };
   }
 
   close(): void {

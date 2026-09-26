@@ -1,13 +1,19 @@
 import { LoaderCircle, Maximize, Minimize } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { VIEW_QUALITIES, type ViewQuality } from '../../media/quality-presets';
+import { QualityMenu } from '../ui/QualityMenu';
 
 interface RemoteScreenProps {
   stream: MediaStream;
   sharerName: string;
+  /** Presente quando a transmissão é simulcast e o espectador pode escolher a qualidade */
+  quality: { selected: ViewQuality; onChange: (quality: ViewQuality) => void } | null;
 }
 
+const VIEW_OPTIONS = VIEW_QUALITIES.map(({ id, label, hint }) => ({ id, label, hint }));
+
 /** A tela de quem está transmitindo, como chega para quem assiste */
-export function RemoteScreen({ stream, sharerName }: RemoteScreenProps) {
+export function RemoteScreen({ stream, sharerName, quality }: RemoteScreenProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [firstFrame, setFirstFrame] = useState(false);
@@ -55,7 +61,7 @@ export function RemoteScreen({ stream, sharerName }: RemoteScreenProps) {
   const FullscreenIcon = fullscreen ? Minimize : Maximize;
 
   return (
-    <div ref={containerRef} className="group relative flex h-full w-full items-center justify-center bg-black">
+    <div ref={containerRef} className="relative flex h-full w-full items-center justify-center bg-black">
       <video
         ref={videoRef}
         autoPlay
@@ -72,23 +78,36 @@ export function RemoteScreen({ stream, sharerName }: RemoteScreenProps) {
         </div>
       )}
 
-      <div className="absolute bottom-3 left-3 flex items-center gap-2 rounded-md bg-background/80 px-2.5 py-1.5 text-caption backdrop-blur">
-        <span className="text-text-secondary">Tela de {sharerName}</span>
-        {size && (
-          <span className="font-mono text-text-primary tabular-nums">
-            {size.width}×{size.height}
-          </span>
-        )}
-      </div>
+      <div className="absolute right-3 bottom-3 left-3 flex items-end justify-between gap-2">
+        <div className="flex items-center gap-2 rounded-md bg-background/80 px-2.5 py-1.5 text-caption backdrop-blur">
+          <span className="text-text-secondary">Tela de {sharerName}</span>
+          {size && (
+            <span className="font-mono text-text-primary tabular-nums" title="Resolução que está chegando até você">
+              {size.width}×{size.height}
+            </span>
+          )}
+        </div>
 
-      <button
-        type="button"
-        onClick={toggleFullscreen}
-        aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-        className="absolute right-3 bottom-3 flex size-8 cursor-pointer items-center justify-center rounded-md bg-background/80 text-text-secondary opacity-0 backdrop-blur transition-opacity duration-120 group-hover:opacity-100 hover:text-text-primary focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-primary/25 focus-visible:outline-none"
-      >
-        <FullscreenIcon size={15} aria-hidden />
-      </button>
+        <div className="flex items-center gap-2">
+          {quality && (
+            <QualityMenu
+              options={VIEW_OPTIONS}
+              selected={quality.selected}
+              onSelect={quality.onChange}
+              triggerLabel={VIEW_QUALITIES.find((q) => q.id === quality.selected)?.label ?? 'Automática'}
+              note="Na automática, a qualidade se ajusta sozinha à sua conexão."
+            />
+          )}
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+            className="flex size-7 cursor-pointer items-center justify-center rounded-sm border border-border bg-surface text-text-secondary transition-colors duration-120 hover:bg-surface-hover hover:text-text-primary focus-visible:ring-3 focus-visible:ring-primary/25 focus-visible:outline-none"
+          >
+            <FullscreenIcon size={14} aria-hidden />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

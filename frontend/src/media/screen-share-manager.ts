@@ -1,7 +1,8 @@
 import type { types } from 'mediasoup-client';
 import { MediaRequestError, type MediaSignaling } from './media-signaling';
 import type { MediaSession } from './media-session';
-import { DISPLAY_MEDIA_OPTIONS, SCREEN_CAPTURE } from './screen-share-config';
+import { buildEncodings, captureConstraints, getSharePreset, type SharePresetId } from './quality-presets';
+import { displayMediaOptions } from './screen-share-config';
 
 export interface CaptureQuality {
   width: number;
@@ -21,24 +22,31 @@ interface ScreenShareListeners {
   onError: (message: string) => void;
 }
 
+/** De quanto em quanto tempo a qualidade real da captura é conferida */
+const QUALITY_CHECK_INTERVAL_MS = 2000;
+
 /**
  * Cuida de todo o ciclo de compartilhar a tela: pedir a captura ao navegador,
- * transmitir pelo mediasoup, reagir ao botão nativo "Parar compartilhamento" e encerrar.
+ * transmitir pelo mediasoup em simulcast, trocar a qualidade, acompanhar o que o
+ * navegador entrega de fato, reagir ao botão nativo "Parar compartilhamento" e encerrar.
  */
 export class ScreenShareManager {
   private state: ScreenShareState = { status: 'idle' };
+  private presetId: SharePresetId;
   private stream: MediaStream | null = null;
   private producer: types.Producer | null = null;
   private transport: types.Transport | null = null;
+  private qualityTimer: number | null = null;
   private disposed = false;
 
   private readonly session: MediaSession;
   private readonly signaling: MediaSignaling;
   private readonly listeners: ScreenShareListeners;
 
-  constructor(session: MediaSession, signaling: MediaSignaling, listeners: ScreenShareListeners) {
+  constructor(session: MediaSession, signaling: MediaSignaling, presetId: SharePresetId, listeners: ScreenShareListeners) {
     this.session = session;
     this.signaling = signaling;
+    this.presetId = presetId;
     this.listeners = listeners;
   }
 
@@ -65,10 +73,11 @@ export class ScreenShareManager {
   async start(): Promise<void> {
     if (this.state.status !== 'idle' || this.disposed) return;
     this.setState({ status: 'starting' });
+    const preset = getSharePreset(this.presetId);
 
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getDisplayMedia(DISPLAY_MEDIA_OPTIONS);
+      stream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions(preset));
     } catch (error) {
       this.setState({ status: 'idle' });
       // Cancelar a janela de escolha não é erro: a pessoa desistiu
@@ -101,7 +110,7 @@ export class ScreenShareManager {
 
       this.producer = await transport.produce({
         track,
-        encodings: [{ maxBitrate: SCREEN_CAPTURE.maxBitrate }],
+        encodings: buildEncodings(preset),
         codecOptions: { videoGoogleStartBitrate: 1000 },
       });
 
@@ -113,6 +122,25 @@ export class ScreenShareManager {
       this.setState({ status: 'idle' });
       this.listeners.onError(this.describeError(error));
     }
+  }
+
+  /**
+   * Troca a qualidade. Durante a transmissão, ajusta a captura com applyConstraints e os limites
+   * de cada camada do simulcast, sem interromper quem está assistindo.
+   */
+  async setPreset(presetId: SharePresetId): Promise<void> {
+    this.presetId = presetId;
+    const track = this.stream?.getVideoTracks()[0];
+    if (!track || !this.producer) return;
+
+    const preset = getSharePreset(presetId);
+    try {
+      await track.applyConstraints(captureConstraints(preset));
+      await this.applyEncodings(preset.id);
+    } catch {
+      this.listeners.onError('O navegador não aceitou essa qualidade para a tela escolhida.');
+    }
+    this.refreshQuality();
   }
 
   async stop(): Promise<void> {
@@ -137,6 +165,23 @@ export class ScreenShareManager {
     this.releaseCapture();
   }
 
+  /** Atualiza bitrate, FPS e camadas ativas direto no RTCRtpSender, sem renegociar a conexão */
+  private async applyEncodings(presetId: SharePresetId): Promise<void> {
+    const sender = this.producer?.rtpSender;
+    if (!sender) return;
+
+    const targets = buildEncodings(getSharePreset(presetId));
+    const parameters = sender.getParameters();
+    parameters.encodings.forEach((encoding, index) => {
+      const target = targets[index];
+      if (!target) return;
+      encoding.active = target.active ?? true;
+      encoding.maxBitrate = target.maxBitrate;
+      encoding.maxFramerate = target.maxFramerate;
+    });
+    await sender.setParameters(parameters);
+  }
+
   private watchTransport(transport: types.Transport): void {
     if (this.transport === transport) return;
     this.transport = transport;
@@ -155,12 +200,31 @@ export class ScreenShareManager {
   }
 
   private goLive(): void {
-    if (this.stream) {
-      this.setState({ status: 'live', stream: this.stream, quality: this.getQuality() });
+    if (!this.stream) return;
+    this.setState({ status: 'live', stream: this.stream, quality: this.getQuality() });
+
+    // A qualidade real muda sem aviso: janela redimensionada, troca de janela, máquina sobrecarregada
+    this.qualityTimer ??= window.setInterval(() => this.refreshQuality(), QUALITY_CHECK_INTERVAL_MS);
+  }
+
+  private refreshQuality(): void {
+    if (this.state.status !== 'live') return;
+
+    const next = this.getQuality();
+    const current = this.state.quality;
+    const changed =
+      next?.width !== current?.width || next?.height !== current?.height || next?.frameRate !== current?.frameRate;
+
+    if (changed) {
+      this.setState({ ...this.state, quality: next });
     }
   }
 
   private releaseCapture(): void {
+    if (this.qualityTimer !== null) {
+      window.clearInterval(this.qualityTimer);
+      this.qualityTimer = null;
+    }
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
   }

@@ -29,6 +29,13 @@ export interface ConsumerInfo {
   producerId: string;
   kind: MediaKind;
   rtpParameters: RtpParameters;
+  /** Verdadeiro quando quem transmite envia várias camadas e o espectador pode escolher entre elas */
+  simulcast: boolean;
+}
+
+export interface SetPreferredLayersPayload {
+  consumerId: string;
+  spatialLayer: number;
 }
 
 export type MediaErrorCode =

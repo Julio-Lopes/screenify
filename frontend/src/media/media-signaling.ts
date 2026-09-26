@@ -69,6 +69,10 @@ export class MediaSignaling {
     await this.request(() => this.withTimeout().emitWithAck('media:resume-consumer', { consumerId }));
   }
 
+  async setPreferredLayers(consumerId: string, spatialLayer: number): Promise<void> {
+    await this.request(() => this.withTimeout().emitWithAck('media:set-preferred-layers', { consumerId, spatialLayer }));
+  }
+
   listProducers(): Promise<ProducerInfo[]> {
     return this.request(() => this.withTimeout().emitWithAck('media:list-producers'));
   }

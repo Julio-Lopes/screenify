@@ -23,6 +23,7 @@
   --color-warning: #f59e0b;
   --color-error: #ef4444;
   --color-info: #38bdf8;
+  --color-info-text: #7dd3fc;
   --color-danger-solid: #dc2626;
 
   /* Tom 400 para texto de status sobre superfície escura (contraste >= 4.5:1) */
