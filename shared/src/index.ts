@@ -16,6 +16,8 @@ export type {
   SetPreferredLayersPayload,
   TransportDirection,
   TransportInfo,
+  UpdateProducerQualityPayload,
+  VideoQuality,
 } from './types/media.js';
 export type {
   ClientToServerEvents,

@@ -1,19 +1,23 @@
 import { LoaderCircle, Maximize, Minimize } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { VIEW_QUALITIES, type ViewQuality } from '../../media/quality-presets';
+import type { LayerOption, SpatialLayer } from '../../media/quality-presets';
 import { QualityMenu } from '../ui/QualityMenu';
 
 interface RemoteScreenProps {
   stream: MediaStream;
   sharerName: string;
-  /** Presente quando a transmissão é simulcast e o espectador pode escolher a qualidade */
-  quality: { selected: ViewQuality; onChange: (quality: ViewQuality) => void } | null;
+  /** Resoluções da live, da maior para a menor; vazio quando não há o que escolher */
+  layers: LayerOption[];
+  selectedLayer: SpatialLayer;
+  onLayerChange: (layer: SpatialLayer) => void;
 }
 
-const VIEW_OPTIONS = VIEW_QUALITIES.map(({ id, label, hint }) => ({ id, label, hint }));
-
 /** A tela de quem está transmitindo, como chega para quem assiste */
-export function RemoteScreen({ stream, sharerName, quality }: RemoteScreenProps) {
+export function RemoteScreen({ stream, sharerName, layers, selectedLayer, onLayerChange }: RemoteScreenProps) {
+  // O menu trabalha com ids em texto; a camada é um número
+  const options = layers.map((option) => ({ id: String(option.layer), label: option.label }));
+  const selectedLabel = layers.find((option) => option.layer === selectedLayer)?.label;
+
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [firstFrame, setFirstFrame] = useState(false);
@@ -89,13 +93,16 @@ export function RemoteScreen({ stream, sharerName, quality }: RemoteScreenProps)
         </div>
 
         <div className="flex items-center gap-2">
-          {quality && (
+          {options.length > 1 && selectedLabel && (
             <QualityMenu
-              options={VIEW_OPTIONS}
-              selected={quality.selected}
-              onSelect={quality.onChange}
-              triggerLabel={VIEW_QUALITIES.find((q) => q.id === quality.selected)?.label ?? 'Automática'}
-              note="Na automática, a qualidade se ajusta sozinha à sua conexão."
+              options={options}
+              selected={String(selectedLayer)}
+              onSelect={(id) => {
+                const option = layers.find((layer) => String(layer.layer) === id);
+                if (option) onLayerChange(option.layer);
+              }}
+              triggerLabel={selectedLabel}
+              note="É um limite máximo: se a sua conexão não aguentar, a qualidade baixa sozinha."
             />
           )}
           <button

@@ -9,6 +9,8 @@ import type {
   RtpCapabilities,
   SetPreferredLayersPayload,
   TransportInfo,
+  UpdateProducerQualityPayload,
+  VideoQuality,
 } from './media.js';
 import type { RoomSummary } from './room.js';
 
@@ -49,6 +51,7 @@ export interface ServerToClientEvents {
   'room:session-replaced': () => void;
   'media:producer-added': (producer: ProducerInfo) => void;
   'media:producer-closed': (payload: { producerId: string }) => void;
+  'media:producer-quality': (payload: { producerId: string; quality: VideoQuality }) => void;
 }
 
 /** Eventos que o navegador envia para o servidor */
@@ -64,6 +67,10 @@ export interface ClientToServerEvents {
   'media:consume': (payload: ConsumePayload, ack: (result: MediaResult<ConsumerInfo>) => void) => void;
   'media:resume-consumer': (payload: { consumerId: string }, ack: (result: MediaResult<null>) => void) => void;
   'media:set-preferred-layers': (payload: SetPreferredLayersPayload, ack: (result: MediaResult<null>) => void) => void;
+  'media:update-producer-quality': (
+    payload: UpdateProducerQualityPayload,
+    ack: (result: MediaResult<null>) => void,
+  ) => void;
 }
 
 /** Mensagem do erro de conexão quando o token de sessão é inválido ou ausente */

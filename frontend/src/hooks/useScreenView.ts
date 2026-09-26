@@ -1,8 +1,8 @@
+import type { ProducerInfo } from '@screenify/shared';
 import type { types } from 'mediasoup-client';
-import { useCallback, useEffect, useState } from 'react';
-import { VIEW_QUALITIES, type ViewQuality } from '../media/quality-presets';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { effectiveLayer, layerOptions, type LayerOption, type SpatialLayer } from '../media/quality-presets';
 import { usePreferencesStore } from '../stores/preferences.store';
-import { toast } from '../stores/toast.store';
 import type { RoomMedia } from './useMediaSession';
 
 export type ScreenViewState =
@@ -13,21 +13,22 @@ export type ScreenViewState =
 
 interface ScreenView {
   state: ScreenViewState;
-  quality: ViewQuality;
-  setQuality: (quality: ViewQuality) => void;
+  /** Resoluções que existem na live agora, da maior para a menor (vazio sem simulcast) */
+  layers: LayerOption[];
+  selectedLayer: SpatialLayer;
+  setLayer: (layer: SpatialLayer) => void;
   retry: () => void;
 }
 
-function spatialLayerFor(quality: ViewQuality): number {
-  return VIEW_QUALITIES.find((q) => q.id === quality)?.spatialLayer ?? 2;
-}
-
 /** Recebe a transmissão de tela de outra pessoa e a entrega como MediaStream para um <video> */
-export function useScreenView(media: RoomMedia | null, producerId: string | null): ScreenView {
+export function useScreenView(media: RoomMedia | null, producer: ProducerInfo | null): ScreenView {
   const [state, setState] = useState<ScreenViewState>({ status: 'idle' });
   const [attempt, setAttempt] = useState(0);
-  const quality = usePreferencesStore((s) => s.viewQuality);
-  const saveQuality = usePreferencesStore((s) => s.setViewQuality);
+  const preferredLayer = usePreferencesStore((s) => s.viewLayer);
+  const savePreferredLayer = usePreferencesStore((s) => s.setViewLayer);
+
+  const producerId = producer?.producerId ?? null;
+  const liveHeight = producer?.quality?.height ?? null;
 
   useEffect(() => {
     if (!media || !producerId) {
@@ -61,13 +62,6 @@ export function useScreenView(media: RoomMedia | null, producerId: string | null
         return;
       }
       consumer = created;
-
-      // Aplica a preferência salva; "Automática" é o padrão do servidor e não precisa de pedido
-      const preferred = usePreferencesStore.getState().viewQuality;
-      if (simulcast && preferred !== 'auto') {
-        await media.signaling.setPreferredLayers(created.id, spatialLayerFor(preferred)).catch(() => undefined);
-      }
-
       setState({ status: 'playing', stream: new MediaStream([created.track]), consumerId: created.id, simulcast });
     })().catch((error: unknown) => {
       // Se a transmissão terminou enquanto conectávamos, o efeito já foi cancelado e o erro não importa
@@ -85,19 +79,20 @@ export function useScreenView(media: RoomMedia | null, producerId: string | null
     };
   }, [media, producerId, attempt]);
 
-  const setQuality = useCallback(
-    (next: ViewQuality) => {
-      saveQuality(next);
-      if (state.status !== 'playing' || !state.simulcast || !media) return;
+  const simulcast = state.status === 'playing' && state.simulcast;
+  const layers = useMemo(() => (simulcast && liveHeight ? layerOptions(liveHeight) : []), [simulcast, liveHeight]);
+  const selectedLayer = layers.length > 0 ? effectiveLayer(preferredLayer, layers) : preferredLayer;
+  const consumerId = state.status === 'playing' ? state.consumerId : null;
 
-      media.signaling
-        .setPreferredLayers(state.consumerId, spatialLayerFor(next))
-        .catch(() => toast('error', 'Não foi possível trocar a qualidade'));
-    },
-    [media, saveQuality, state],
-  );
+  // Envia o teto ao servidor quando a transmissão começa e sempre que ele muda:
+  // por escolha de quem assiste, ou porque a live mudou de resolução e a camada escolhida deixou de existir
+  useEffect(() => {
+    if (!media || !consumerId || !simulcast) return;
+    void media.signaling.setPreferredLayers(consumerId, selectedLayer).catch(() => undefined);
+  }, [media, consumerId, simulcast, selectedLayer]);
 
+  const setLayer = useCallback((layer: SpatialLayer) => savePreferredLayer(layer), [savePreferredLayer]);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
-  return { state, quality, setQuality, retry };
+  return { state, layers, selectedLayer, setLayer, retry };
 }

@@ -17,11 +17,20 @@ export interface TransportInfo {
   dtlsParameters: DtlsParameters;
 }
 
+/** Qualidade que o navegador de quem transmite está capturando de fato */
+export interface VideoQuality {
+  width: number;
+  height: number;
+  frameRate: number;
+}
+
 export interface ProducerInfo {
   producerId: string;
   userId: string;
   kind: MediaKind;
   source: MediaSource;
+  /** Nulo até quem transmite informar; muda quando a qualidade ou a janela compartilhada muda */
+  quality: VideoQuality | null;
 }
 
 export interface ConsumerInfo {
@@ -66,6 +75,12 @@ export interface ProducePayload {
   kind: MediaKind;
   rtpParameters: RtpParameters;
   source: MediaSource;
+  quality?: VideoQuality;
+}
+
+export interface UpdateProducerQualityPayload {
+  producerId: string;
+  quality: VideoQuality;
 }
 
 export interface ConsumePayload {

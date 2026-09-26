@@ -8,6 +8,7 @@ import type {
   RtpParameters,
   TransportDirection,
   TransportInfo,
+  VideoQuality,
 } from '@screenify/shared';
 import type { types } from 'mediasoup';
 import { logger } from '../utils/logger.js';
@@ -30,6 +31,7 @@ function toClientParameters(parameters: types.RtpParameters): RtpParameters {
 interface ProducerAppData extends types.AppData {
   userId: string;
   source: MediaSource;
+  quality: VideoQuality | null;
 }
 
 /** Tudo de mídia que pertence a uma pessoa na sala */
@@ -114,6 +116,7 @@ export class RoomMedia {
     kind: MediaKind,
     rtpParameters: RtpParameters,
     source: MediaSource,
+    quality: VideoQuality | null,
   ): Promise<ProducerInfo> {
     const transport = this.getTransport(userId, transportId);
 
@@ -129,7 +132,7 @@ export class RoomMedia {
     const producer = await transport.produce<ProducerAppData>({
       kind,
       rtpParameters,
-      appData: { userId, source },
+      appData: { userId, source, quality },
     });
 
     const peer = this.getOrCreatePeer(userId);
@@ -162,6 +165,14 @@ export class RoomMedia {
       '[MEDIASOUP] Producer created',
     );
     return this.toProducerInfo(producer);
+  }
+
+  updateProducerQuality(userId: string, producerId: string, quality: VideoQuality): void {
+    const producer = this.peers.get(userId)?.producers.get(producerId);
+    if (!producer) {
+      throw new MediaError('PRODUCER_NOT_FOUND', 'Transmissão não encontrada');
+    }
+    producer.appData.quality = quality;
   }
 
   closeProducer(userId: string, producerId: string): void {
@@ -281,6 +292,7 @@ export class RoomMedia {
       userId: producer.appData.userId,
       kind: producer.kind,
       source: producer.appData.source,
+      quality: producer.appData.quality,
     };
   }
 }

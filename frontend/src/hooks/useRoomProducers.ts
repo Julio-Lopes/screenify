@@ -1,4 +1,4 @@
-import type { ProducerInfo } from '@screenify/shared';
+import type { ProducerInfo, VideoQuality } from '@screenify/shared';
 import { useEffect, useState } from 'react';
 import type { RoomMedia } from './useMediaSession';
 import type { AppSocket } from '../services/socket';
@@ -16,8 +16,12 @@ export function useRoomProducers(socket: AppSocket, media: RoomMedia | null): Pr
     const onClosed = ({ producerId }: { producerId: string }) =>
       setProducers((list) => list.filter((p) => p.producerId !== producerId));
 
+    const onQuality = ({ producerId, quality }: { producerId: string; quality: VideoQuality }) =>
+      setProducers((list) => list.map((p) => (p.producerId === producerId ? { ...p, quality } : p)));
+
     socket.on('media:producer-added', onAdded);
     socket.on('media:producer-closed', onClosed);
+    socket.on('media:producer-quality', onQuality);
 
     // Estado inicial: o que já estava sendo transmitido antes de entrarmos
     media.signaling
@@ -29,6 +33,7 @@ export function useRoomProducers(socket: AppSocket, media: RoomMedia | null): Pr
       active = false;
       socket.off('media:producer-added', onAdded);
       socket.off('media:producer-closed', onClosed);
+      socket.off('media:producer-quality', onQuality);
     };
   }, [socket, media]);
 

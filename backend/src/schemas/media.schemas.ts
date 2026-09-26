@@ -20,6 +20,12 @@ export const connectTransportSchema = z.object({
   }),
 });
 
+export const videoQualitySchema = z.object({
+  width: z.int().min(1).max(7680),
+  height: z.int().min(1).max(4320),
+  frameRate: z.number().min(0).max(240),
+});
+
 export const produceSchema = z.object({
   transportId: mediasoupId,
   kind: z.enum(['audio', 'video']),
@@ -27,6 +33,12 @@ export const produceSchema = z.object({
     codecs: z.array(z.looseObject({ mimeType: z.string() })).min(1),
   }),
   source: z.literal('screen'),
+  quality: videoQualitySchema.optional(),
+});
+
+export const updateProducerQualitySchema = z.object({
+  producerId: mediasoupId,
+  quality: videoQualitySchema,
 });
 
 export const producerIdSchema = z.object({

@@ -1,14 +1,11 @@
+import type { VideoQuality } from '@screenify/shared';
 import type { types } from 'mediasoup-client';
 import { MediaRequestError, type MediaSignaling } from './media-signaling';
 import type { MediaSession } from './media-session';
 import { buildEncodings, captureConstraints, getSharePreset, type SharePresetId } from './quality-presets';
 import { displayMediaOptions } from './screen-share-config';
 
-export interface CaptureQuality {
-  width: number;
-  height: number;
-  frameRate: number;
-}
+export type CaptureQuality = VideoQuality;
 
 export type ScreenShareState =
   | { status: 'idle' }
@@ -112,6 +109,7 @@ export class ScreenShareManager {
         track,
         encodings: buildEncodings(preset),
         codecOptions: { videoGoogleStartBitrate: 1000 },
+        appData: { quality: this.getQuality() ?? undefined },
       });
 
       if (transport.connectionState === 'connected') {
@@ -217,6 +215,11 @@ export class ScreenShareManager {
 
     if (changed) {
       this.setState({ ...this.state, quality: next });
+
+      // Avisa a sala: o menu de camadas de quem assiste depende da resolução real
+      if (next && this.producer) {
+        void this.signaling.updateProducerQuality(this.producer.id, next).catch(() => undefined);
+      }
     }
   }
 

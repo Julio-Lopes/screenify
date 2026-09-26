@@ -152,7 +152,7 @@ describe('Producer', () => {
     const producerId = await shareScreen(hostClient);
 
     const [producer] = await added;
-    expect(producer).toEqual({ producerId, userId: host.user.id, kind: 'video', source: 'screen' });
+    expect(producer).toEqual({ producerId, userId: host.user.id, kind: 'video', source: 'screen', quality: null });
 
     const list = await guestClient.emitWithAck('media:list-producers');
     expect(list).toEqual({ ok: true, data: [producer] });
@@ -308,6 +308,59 @@ describe('Simulcast', () => {
     expect(consumer.simulcast).toBe(false);
     expect(
       await guestClient.emitWithAck('media:set-preferred-layers', { consumerId: consumer.id, spatialLayer: 0 }),
+    ).toMatchObject({ ok: false, error: 'INVALID_PAYLOAD' });
+  });
+});
+
+
+describe('Qualidade informada por quem transmite', () => {
+  const FULL_HD = { width: 1920, height: 1080, frameRate: 30 };
+
+  it('chega a quem assiste na criação, nas atualizações e na lista', async () => {
+    const { host, guest, room } = await setup();
+    const hostClient = await enter(room, host.token);
+    const guestClient = await enter(room, guest.token);
+
+    const transport = await hostClient.emitWithAck('media:create-transport', { direction: 'send' });
+    if (!transport.ok) throw new Error(transport.message);
+
+    const added = nextEvent(guestClient, 'media:producer-added');
+    const produced = await hostClient.emitWithAck('media:produce', {
+      transportId: transport.data.id,
+      kind: 'video',
+      rtpParameters: VP8_SIMULCAST_RTP_PARAMETERS,
+      source: 'screen',
+      quality: FULL_HD,
+    });
+    if (!produced.ok) throw new Error(produced.message);
+    expect((await added)[0].quality).toEqual(FULL_HD);
+
+    const HD = { width: 1280, height: 720, frameRate: 30 };
+    const changed = nextEvent(guestClient, 'media:producer-quality');
+    expect(
+      await hostClient.emitWithAck('media:update-producer-quality', { producerId: produced.data.producerId, quality: HD }),
+    ).toEqual({ ok: true, data: null });
+    expect((await changed)[0]).toEqual({ producerId: produced.data.producerId, quality: HD });
+
+    const list = await guestClient.emitWithAck('media:list-producers');
+    expect(list.ok && list.data[0]?.quality).toEqual(HD);
+  });
+
+  it('só quem transmite pode informar a qualidade, e com valores válidos', async () => {
+    const { host, guest, room } = await setup();
+    const hostClient = await enter(room, host.token);
+    const guestClient = await enter(room, guest.token);
+    const producerId = await shareScreen(hostClient);
+
+    expect(
+      await guestClient.emitWithAck('media:update-producer-quality', { producerId, quality: FULL_HD }),
+    ).toMatchObject({ ok: false, error: 'PRODUCER_NOT_FOUND' });
+
+    expect(
+      await hostClient.emitWithAck('media:update-producer-quality', {
+        producerId,
+        quality: { width: -1, height: 1080, frameRate: 30 },
+      }),
     ).toMatchObject({ ok: false, error: 'INVALID_PAYLOAD' });
   });
 });

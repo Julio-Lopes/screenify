@@ -17,6 +17,7 @@ import {
   produceSchema,
   producerIdSchema,
   setPreferredLayersSchema,
+  updateProducerQualitySchema,
 } from '../schemas/media.schemas.js';
 import { logger } from '../utils/logger.js';
 import { roomChannel, type AppServer, type AppSocket } from './types.js';
@@ -87,8 +88,15 @@ export function registerMediaHandlers(io: AppServer, socket: AppSocket, media: M
 
   socket.on('media:produce', (payload: ProducePayload, ack) =>
     respond(socket, 'produce', ack, async () => {
-      const { transportId, kind, source } = parse(produceSchema, payload);
-      const producer = await (await roomMedia()).produce(userId, transportId, kind, payload.rtpParameters, source);
+      const { transportId, kind, source, quality } = parse(produceSchema, payload);
+      const producer = await (await roomMedia()).produce(
+        userId,
+        transportId,
+        kind,
+        payload.rtpParameters,
+        source,
+        quality ?? null,
+      );
 
       if (socket.data.roomId) {
         socket.to(roomChannel(socket.data.roomId)).emit('media:producer-added', producer);
@@ -128,6 +136,18 @@ export function registerMediaHandlers(io: AppServer, socket: AppSocket, media: M
     respond(socket, 'set-preferred-layers', ack, async () => {
       const { consumerId, spatialLayer } = parse(setPreferredLayersSchema, payload);
       await (await roomMedia()).setPreferredLayers(userId, consumerId, spatialLayer);
+      return null;
+    }),
+  );
+
+  socket.on('media:update-producer-quality', (payload, ack) =>
+    respond(socket, 'update-producer-quality', ack, async () => {
+      const { producerId, quality } = parse(updateProducerQualitySchema, payload);
+      (await roomMedia()).updateProducerQuality(userId, producerId, quality);
+
+      if (socket.data.roomId) {
+        socket.to(roomChannel(socket.data.roomId)).emit('media:producer-quality', { producerId, quality });
+      }
       return null;
     }),
   );

@@ -9,6 +9,7 @@ import type {
   RtpCapabilities,
   TransportDirection,
   TransportInfo,
+  VideoQuality,
 } from '@screenify/shared';
 import type { AppSocket } from '../services/socket';
 
@@ -71,6 +72,10 @@ export class MediaSignaling {
 
   async setPreferredLayers(consumerId: string, spatialLayer: number): Promise<void> {
     await this.request(() => this.withTimeout().emitWithAck('media:set-preferred-layers', { consumerId, spatialLayer }));
+  }
+
+  async updateProducerQuality(producerId: string, quality: VideoQuality): Promise<void> {
+    await this.request(() => this.withTimeout().emitWithAck('media:update-producer-quality', { producerId, quality }));
   }
 
   listProducers(): Promise<ProducerInfo[]> {

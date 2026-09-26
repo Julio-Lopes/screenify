@@ -9,6 +9,7 @@ import { EndRoomModal } from '../components/room/EndRoomModal';
 import { JoinForm, type JoinFormValues } from '../components/room/JoinForm';
 import { LiveBadge } from '../components/room/LiveBadge';
 import { ParticipantsPanel } from '../components/room/ParticipantsPanel';
+import { QualityBadges } from '../components/room/QualityBadges';
 import { RemoteScreen } from '../components/room/RemoteScreen';
 import { RoomShell } from '../components/room/RoomShell';
 import { ScreenPreview } from '../components/room/ScreenPreview';
@@ -231,7 +232,10 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
     : null;
   const sharingUserId = selfSharing ? self.userId : (screenProducer?.userId ?? null);
   const isLive = share.state.status === 'live' || otherSharer !== null;
-  const view = useScreenView(media, screenProducer?.producerId ?? null);
+  const view = useScreenView(media, screenProducer);
+  // Qualidade real da live para os badges do cabeçalho: a própria, ou a informada por quem transmite
+  const liveQuality =
+    share.state.status === 'live' ? share.state.quality : otherSharer ? (screenProducer?.quality ?? null) : null;
 
   async function copyLink() {
     try {
@@ -267,6 +271,7 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
             <Lock size={14} className="shrink-0 text-text-muted" aria-label="Sala protegida por senha" />
           )}
           {isLive && <LiveBadge />}
+          {isLive && liveQuality && <QualityBadges quality={liveQuality} />}
         </div>
         <AvatarGroup participants={participants} />
         <ShareScreenButton
@@ -318,7 +323,9 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
                 <RemoteScreen
                   stream={view.state.stream}
                   sharerName={otherSharer.displayName}
-                  quality={view.state.simulcast ? { selected: view.quality, onChange: view.setQuality } : null}
+                  layers={view.layers}
+                  selectedLayer={view.selectedLayer}
+                  onLayerChange={view.setLayer}
                 />
               ) : view.state.status === 'error' ? (
                 <StateMessage

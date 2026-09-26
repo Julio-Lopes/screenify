@@ -40,15 +40,20 @@ export function formatMbps(bitsPerSecond: number): string {
 }
 
 /*
- * Simulcast: quem transmite envia a mesma tela em três camadas (1/4, 1/2 e a resolução cheia).
- * O servidor entrega a cada espectador a maior camada que a conexão dele aguenta.
+ * Simulcast: quem transmite envia a mesma tela em três camadas (1/3, 2/3 e a resolução cheia).
+ * Numa tela 1080p isso dá 360p, 720p e 1080p. O servidor entrega a cada espectador
+ * a maior camada que a conexão dele aguenta, até o teto que ele escolher.
  */
+export type SpatialLayer = 0 | 1 | 2;
+
+export const HIGHEST_LAYER: SpatialLayer = 2;
+
 const LAYERS = [
-  // scale: divisor da resolução; weight: fatia do bitrate (quase tudo vai para a camada cheia)
-  { scale: 4, weight: 0.05 },
-  { scale: 2, weight: 0.2 },
-  { scale: 1, weight: 0.75 },
-] as const;
+  // scale: divisor da resolução; weight: fatia do bitrate (a maior parte vai para a camada cheia)
+  { layer: 0, scale: 3, weight: 0.1 },
+  { layer: 1, scale: 1.5, weight: 0.25 },
+  { layer: 2, scale: 1, weight: 0.65 },
+] as const satisfies readonly { layer: SpatialLayer; scale: number; weight: number }[];
 
 /** Camadas menores que isso não ajudam ninguém a ler uma tela: ficam desligadas */
 const MIN_LAYER_HEIGHT = 180;
@@ -76,11 +81,29 @@ export function captureConstraints(preset: SharePreset): MediaTrackConstraints {
   };
 }
 
-/** Qualidade que o espectador escolhe receber. É um teto: a rede ainda pode baixar mais */
-export type ViewQuality = 'auto' | 'medium' | 'low';
+export interface LayerOption {
+  layer: SpatialLayer;
+  height: number;
+  label: string;
+}
 
-export const VIEW_QUALITIES: readonly { id: ViewQuality; label: string; hint: string; spatialLayer: number }[] = [
-  { id: 'auto', label: 'Automática', hint: 'Melhor possível', spatialLayer: 2 },
-  { id: 'medium', label: 'Média', hint: '½ resolução', spatialLayer: 1 },
-  { id: 'low', label: 'Baixa', hint: '¼ resolução', spatialLayer: 0 },
-];
+/**
+ * As camadas que existem de fato numa transmissão, da maior para a menor, calculadas
+ * a partir da altura real capturada. Numa live 1080p: 1080p, 720p e 360p.
+ */
+export function layerOptions(height: number): LayerOption[] {
+  return LAYERS.map(({ layer, scale }) => ({ layer, height: Math.round(height / scale) }))
+    .filter((option) => option.height >= MIN_LAYER_HEIGHT)
+    .reverse()
+    .map((option) => ({ ...option, label: `${option.height}p` }));
+}
+
+/** A camada efetiva para uma preferência: a preferida, ou a mais próxima abaixo dela que exista */
+export function effectiveLayer(preferred: SpatialLayer, options: LayerOption[]): SpatialLayer {
+  // As opções vêm da maior para a menor: a primeira que não passa do teto é a certa
+  return options.find((option) => option.layer <= preferred)?.layer ?? options.at(-1)?.layer ?? HIGHEST_LAYER;
+}
+
+export function qualityLabel(quality: { height: number; frameRate: number }): string {
+  return `${quality.height}p / ${quality.frameRate} FPS`;
+}
