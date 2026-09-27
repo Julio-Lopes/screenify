@@ -81,6 +81,8 @@
   --animate-enter: sf-enter 220ms var(--ease-standard);
   --animate-fade: sf-fade 160ms var(--ease-standard);
   --animate-drawer: sf-drawer 220ms var(--ease-standard);
+  --animate-live-pulse: sf-pulse 1.6s ease-in-out infinite;
+  --animate-draw: sf-draw 6s ease-out infinite;
 
   @keyframes sf-modal {
     from {
@@ -117,6 +119,29 @@
 
   @keyframes sf-fade {
     from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes sf-pulse {
+    50% {
+      opacity: 0.35;
+    }
+  }
+
+  /* Traço sendo desenhado na prévia da Home: aparece, fica um tempo e some */
+  @keyframes sf-draw {
+    0% {
+      stroke-dashoffset: 100;
+      opacity: 1;
+    }
+    28%,
+    82% {
+      stroke-dashoffset: 0;
+      opacity: 1;
+    }
+    100% {
+      stroke-dashoffset: 0;
       opacity: 0;
     }
   }

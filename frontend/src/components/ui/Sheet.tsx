@@ -32,7 +32,7 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
     return () => {
       window.removeEventListener('keydown', onKeyDown, true);
       // O foco volta para o botão que abriu o painel
-      previous?.focus();
+      previous?.focus({ preventScroll: true });
     };
   }, [open, onClose]);
 
