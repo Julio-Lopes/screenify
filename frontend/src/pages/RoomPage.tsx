@@ -408,6 +408,8 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
                 connecting={share.state.status === 'connecting'}
                 preset={share.preset}
                 onPresetChange={share.setPreset}
+                mode={share.mode}
+                onModeChange={share.setMode}
                 annotations={annotations}
                 cursors={cursors}
               />

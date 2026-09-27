@@ -37,8 +37,8 @@ export const MEDIA_CODECS: types.RouterRtpCodecCapability[] = [
   },
 ];
 
-/** Teto de bitrate que o servidor aceita de quem transmite (bits por segundo) */
-export const MAX_INCOMING_BITRATE = 10_000_000;
+/** Teto de bitrate que o servidor aceita de quem transmite (bits por segundo). O modo jogo em 1080p60 usa ~14 Mbps */
+export const MAX_INCOMING_BITRATE = 20_000_000;
 
 /** Bitrate inicial ao enviar para um espectador, antes de o controle de congestionamento medir a rede */
 export const INITIAL_OUTGOING_BITRATE = 3_000_000;

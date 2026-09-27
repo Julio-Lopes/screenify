@@ -2,7 +2,14 @@ import type { QualityTarget, VideoQuality } from '@screenify/shared';
 import type { types } from 'mediasoup-client';
 import { MediaRequestError, type MediaSignaling } from './media-signaling';
 import type { MediaSession } from './media-session';
-import { buildEncodings, captureConstraints, getSharePreset, type SharePresetId } from './quality-presets';
+import { chooseCodec } from './codec-selection';
+import {
+  buildEncodings,
+  captureConstraints,
+  getSharePreset,
+  type SharePresetId,
+  type ShareMode,
+} from './quality-presets';
 import { displayMediaOptions } from './screen-share-config';
 
 export type CaptureQuality = VideoQuality;
@@ -12,7 +19,13 @@ export type ScreenShareState =
   | { status: 'starting' }
   /** Capturando e produzindo, mas a conexão WebRTC com o servidor ainda não fechou */
   | { status: 'connecting'; stream: MediaStream }
-  | { status: 'live'; stream: MediaStream; quality: CaptureQuality | null };
+  | { status: 'live'; stream: MediaStream; quality: CaptureQuality | null; codec: CodecInfo };
+
+/** Codec em uso e se o navegador indicou codificação por hardware ao escolhê-lo */
+export interface CodecInfo {
+  mimeType: string;
+  hardware: boolean;
+}
 
 interface ScreenShareListeners {
   onChange: (state: ScreenShareState) => void;
@@ -30,6 +43,8 @@ const QUALITY_CHECK_INTERVAL_MS = 2000;
 export class ScreenShareManager {
   private state: ScreenShareState = { status: 'idle' };
   private presetId: SharePresetId;
+  private mode: ShareMode;
+  private codecInfo: CodecInfo = { mimeType: 'video/VP8', hardware: false };
   private stream: MediaStream | null = null;
   private producer: types.Producer | null = null;
   private transport: types.Transport | null = null;
@@ -40,10 +55,17 @@ export class ScreenShareManager {
   private readonly signaling: MediaSignaling;
   private readonly listeners: ScreenShareListeners;
 
-  constructor(session: MediaSession, signaling: MediaSignaling, presetId: SharePresetId, listeners: ScreenShareListeners) {
+  constructor(
+    session: MediaSession,
+    signaling: MediaSignaling,
+    presetId: SharePresetId,
+    mode: ShareMode,
+    listeners: ScreenShareListeners,
+  ) {
     this.session = session;
     this.signaling = signaling;
     this.presetId = presetId;
+    this.mode = mode;
     this.listeners = listeners;
   }
 
@@ -102,9 +124,7 @@ export class ScreenShareManager {
       return;
     }
 
-    // Diz ao codificador que é conteúdo com texto e detalhes finos, não uma câmera:
-    // ele prioriza nitidez em vez de fluidez quando a banda aperta
-    track.contentHint = 'detail';
+    this.applyContentHint(track);
 
     // Botão nativo "Parar compartilhamento" do navegador, ou janela compartilhada fechada
     track.addEventListener('ended', () => void this.stop());
@@ -116,12 +136,21 @@ export class ScreenShareManager {
       const transport = await this.session.getSendTransport();
       this.watchTransport(transport);
 
+      // O codec só pode ser escolhido aqui: trocar depois exigiria um novo Producer
+      const device = await this.session.getDevice();
+      const { codec, hardware } = await chooseCodec(device, preset, this.mode);
+      this.codecInfo = { mimeType: codec?.mimeType ?? 'video/VP8', hardware };
+
       this.producer = await transport.produce({
         track,
-        encodings: buildEncodings(preset),
-        codecOptions: { videoGoogleStartBitrate: 1000 },
+        codec,
+        encodings: buildEncodings(preset, { mode: this.mode, mimeType: this.codecInfo.mimeType }),
+        // No modo jogo começa mais alto: com 1 Mbps, os primeiros segundos ficam borrados até a rede ser medida
+        codecOptions: { videoGoogleStartBitrate: this.mode === 'game' ? 3000 : 1000 },
         appData: { quality: this.getQuality() ?? undefined, target: this.getTarget() },
       });
+
+      await this.applyDegradationPreference();
 
       if (transport.connectionState === 'connected') {
         this.goLive();
@@ -154,6 +183,28 @@ export class ScreenShareManager {
     this.publishQuality();
   }
 
+  /**
+   * Troca o modo durante a transmissão. O comportamento do codificador e os bitrates mudam na hora;
+   * o codec (VP8 ou H264) só muda na próxima vez que a pessoa começar a compartilhar.
+   */
+  async setMode(mode: ShareMode): Promise<void> {
+    this.mode = mode;
+    const track = this.stream?.getVideoTracks()[0];
+    if (!track || !this.producer) return;
+
+    this.applyContentHint(track);
+    try {
+      await this.applyEncodings(this.presetId);
+      await this.applyDegradationPreference();
+    } catch {
+      this.listeners.onError('O navegador não aceitou trocar o modo durante a transmissão.');
+    }
+  }
+
+  getCodecInfo(): CodecInfo {
+    return this.codecInfo;
+  }
+
   async stop(): Promise<void> {
     const producer = this.producer;
     this.producer = null;
@@ -181,7 +232,7 @@ export class ScreenShareManager {
     const sender = this.producer?.rtpSender;
     if (!sender) return;
 
-    const targets = buildEncodings(getSharePreset(presetId));
+    const targets = buildEncodings(getSharePreset(presetId), { mode: this.mode, mimeType: this.codecInfo.mimeType });
     const parameters = sender.getParameters();
     parameters.encodings.forEach((encoding, index) => {
       const target = targets[index];
@@ -191,6 +242,26 @@ export class ScreenShareManager {
       encoding.maxFramerate = target.maxFramerate;
     });
     await sender.setParameters(parameters);
+  }
+
+  /**
+   * 'motion': quando falta CPU ou banda, o codificador reduz a resolução e mantém o FPS (jogos).
+   * 'detail': mantém a nitidez e derruba o FPS (texto, código, slides).
+   */
+  private applyContentHint(track: MediaStreamTrack): void {
+    track.contentHint = this.mode === 'game' ? 'motion' : 'detail';
+  }
+
+  /**
+   * Reforça a mesma escolha direto no RTCRtpSender. O contentHint já define o padrão, mas
+   * alguns navegadores só respeitam a preferência explícita. Quem não suporta ignora.
+   */
+  private async applyDegradationPreference(): Promise<void> {
+    const sender = this.producer?.rtpSender;
+    if (!sender) return;
+    const parameters = sender.getParameters() as RTCRtpSendParameters & { degradationPreference?: string };
+    parameters.degradationPreference = this.mode === 'game' ? 'maintain-framerate' : 'maintain-resolution';
+    await sender.setParameters(parameters).catch(() => undefined);
   }
 
   private watchTransport(transport: types.Transport): void {
@@ -212,7 +283,7 @@ export class ScreenShareManager {
 
   private goLive(): void {
     if (!this.stream) return;
-    this.setState({ status: 'live', stream: this.stream, quality: this.getQuality() });
+    this.setState({ status: 'live', stream: this.stream, quality: this.getQuality(), codec: this.codecInfo });
 
     // A qualidade real muda sem aviso: janela redimensionada, troca de janela, máquina sobrecarregada
     this.qualityTimer ??= window.setInterval(() => this.refreshQuality(), QUALITY_CHECK_INTERVAL_MS);

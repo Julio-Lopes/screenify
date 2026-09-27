@@ -5,6 +5,7 @@ import {
   getSharePreset,
   layerForMaxHeight,
   layerOptions,
+  presetBitrate,
   SHARE_PRESETS,
 } from './quality-presets';
 
@@ -29,6 +30,28 @@ describe('buildEncodings', () => {
     expect(buildEncodings(getSharePreset('480p30')).map((e) => e.active)).toEqual([false, true, true]);
     expect(buildEncodings(getSharePreset('360p30')).map((e) => e.active)).toEqual([false, true, true]);
     expect(buildEncodings(getSharePreset('720p30')).map((e) => e.active)).toEqual([true, true, true]);
+  });
+
+  it('no modo jogo, a camada cheia de 1080p60 passa de 10 Mbps', () => {
+    const top = buildEncodings(getSharePreset('1080p60'), { mode: 'game' }).at(-1);
+    expect(top?.maxBitrate).toBeGreaterThanOrEqual(10_000_000);
+  });
+
+  it.each(SHARE_PRESETS.map((preset) => [preset.id, preset] as const))(
+    '%s no modo jogo distribui o bitrate do modo jogo',
+    (_id, preset) => {
+      const total = buildEncodings(preset, { mode: 'game' })
+        .filter((e) => e.active)
+        .reduce((sum, e) => sum + (e.maxBitrate ?? 0), 0);
+      expect(Math.abs(total - presetBitrate(preset, 'game'))).toBeLessThanOrEqual(2);
+    },
+  );
+
+  it('com H264 não pede camadas temporais, que derrubariam o encoder por hardware', () => {
+    const h264 = buildEncodings(getSharePreset('1080p60'), { mode: 'game', mimeType: 'video/H264' });
+    expect(h264.every((e) => e.scalabilityMode === undefined)).toBe(true);
+    const vp8 = buildEncodings(getSharePreset('1080p60'), { mode: 'game' });
+    expect(vp8.every((e) => e.scalabilityMode === 'L1T3')).toBe(true);
   });
 
   it('limita o FPS de todas as camadas ao da qualidade escolhida', () => {

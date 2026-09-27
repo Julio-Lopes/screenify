@@ -7,9 +7,12 @@ import { CursorToggle } from '../../cursor/CursorToggle';
 import {
   formatMbps,
   getSharePreset,
+  presetBitrate,
   presetLabel,
+  SHARE_MODES,
   SHARE_PRESETS,
   type SharePresetId,
+  type ShareMode,
 } from '../../media/quality-presets';
 import type { CaptureQuality } from '../../media/screen-share-manager';
 import { QualityMenu } from '../ui/QualityMenu';
@@ -20,15 +23,22 @@ interface ScreenPreviewProps {
   connecting: boolean;
   preset: SharePresetId;
   onPresetChange: (preset: SharePresetId) => void;
+  mode: ShareMode;
+  onModeChange: (mode: ShareMode) => void;
   annotations: Annotations;
   cursors: CursorContext;
 }
 
-const PRESET_OPTIONS = SHARE_PRESETS.map((preset) => ({
-  id: preset.id,
-  label: presetLabel(preset),
-  hint: formatMbps(preset.bitrate),
-}));
+/** O bitrate estimado depende do modo: jogo usa bem mais */
+function presetOptions(mode: ShareMode) {
+  return SHARE_PRESETS.map((preset) => ({
+    id: preset.id,
+    label: presetLabel(preset),
+    hint: formatMbps(presetBitrate(preset, mode)),
+  }));
+}
+
+const MODE_OPTIONS = SHARE_MODES.map(({ id, label, hint }) => ({ id, label, hint }));
 
 /** O que você está transmitindo, exibido para você mesmo */
 export function ScreenPreview({
@@ -37,6 +47,8 @@ export function ScreenPreview({
   connecting,
   preset,
   onPresetChange,
+  mode,
+  onModeChange,
   annotations,
   cursors,
 }: ScreenPreviewProps) {
@@ -64,8 +76,8 @@ export function ScreenPreview({
             <>
               <span className="text-text-secondary">Sua tela</span>
               {quality && (
-                <span className="font-mono text-text-primary tabular-nums" title="Qualidade que o navegador está entregando">
-                  {quality.width}×{quality.height} • {quality.frameRate} FPS
+                <span className="font-mono text-text-primary tabular-nums" title="Resolução que o navegador está capturando">
+                  {quality.width}×{quality.height}
                 </span>
               )}
             </>
@@ -75,7 +87,14 @@ export function ScreenPreview({
         <div className="flex items-center gap-2">
           <CursorToggle visible={cursors.visible} onToggle={cursors.toggle} />
           <QualityMenu
-            options={PRESET_OPTIONS}
+            options={MODE_OPTIONS}
+            selected={mode}
+            onSelect={onModeChange}
+            triggerLabel={mode === 'game' ? 'Jogo' : 'Texto'}
+            note="O codec (GPU ou CPU) é escolhido ao começar a compartilhar; o resto muda na hora."
+          />
+          <QualityMenu
+            options={presetOptions(mode)}
             selected={preset}
             onSelect={onPresetChange}
             triggerLabel={presetLabel(getSharePreset(preset))}

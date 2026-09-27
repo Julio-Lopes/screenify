@@ -6,6 +6,16 @@ export interface StreamMetrics {
   bitrateKbps: number | null;
   rttMs: number | null;
   packetLossPct: number | null;
+  /**
+   * Só para quem transmite: por que o navegador está entregando menos que o pedido.
+   * 'cpu' = o processador não dá conta de codificar; 'bandwidth' = a rede não comporta;
+   * 'none' = nada limitando. Vem do outbound-rtp da maior camada.
+   */
+  limitation: 'cpu' | 'bandwidth' | 'none' | 'other' | null;
+  /** Só para quem transmite: se o codificador em uso roda na GPU (hardware) ou na CPU (software) */
+  encoder: 'hardware' | 'software' | null;
+  /** Só para quem transmite: FPS que a captura está entregando, antes do codificador */
+  captureFps: number | null;
 }
 
 /** Contadores acumulados de uma leitura; a próxima leitura calcula as taxas pela diferença */
@@ -86,9 +96,34 @@ export function readStreamStats(
     bitrateKbps: previous ? Math.round((rate(sample.bytes, previous.bytes, elapsed) * 8) / 1000) : null,
     rttMs: readRtt(entries),
     packetLossPct: previous && lost + delivered > 0 ? Math.round((lost / (lost + delivered)) * 1000) / 10 : previous ? 0 : null,
+    limitation: direction === 'outbound' ? readLimitation(top) : null,
+    encoder: direction === 'outbound' ? readEncoder(top) : null,
+    captureFps:
+      direction === 'outbound'
+        ? num(entries.find((e) => e.type === 'media-source' && e.kind === 'video')?.framesPerSecond)
+        : null,
   };
 
   return { metrics, sample };
+}
+
+function readLimitation(rtp: RawStats | null): StreamMetrics['limitation'] {
+  const reason = rtp?.qualityLimitationReason;
+  if (typeof reason !== 'string') return null;
+  return reason === 'cpu' || reason === 'bandwidth' || reason === 'none' ? reason : 'other';
+}
+
+/**
+ * powerEfficientEncoder é o sinal oficial (Chrome só expõe com permissão de captura, que quem
+ * transmite tem). Sem ele, o nome da implementação: libvpx, libaom e OpenH264 são software.
+ */
+function readEncoder(rtp: RawStats | null): StreamMetrics['encoder'] {
+  if (typeof rtp?.powerEfficientEncoder === 'boolean') {
+    return rtp.powerEfficientEncoder ? 'hardware' : 'software';
+  }
+  const name = rtp?.encoderImplementation;
+  if (typeof name !== 'string' || name === '' || name === 'unknown') return null;
+  return /libvpx|libaom|openh264|dav1d/i.test(name) ? 'software' : 'hardware';
 }
 
 export function formatBitrate(kbps: number): string {

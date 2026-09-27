@@ -27,6 +27,38 @@ export const SHARE_PRESETS: readonly SharePreset[] = Object.values(PRESETS);
 
 export const DEFAULT_SHARE_PRESET: SharePresetId = '1080p30';
 
+/*
+ * Modo de conteúdo. Muda como o codificador se comporta quando falta CPU ou banda:
+ * - 'text': apresentações, código, documentos. Mantém a nitidez e sacrifica o FPS.
+ * - 'game': jogos e vídeos. Mantém o FPS, sacrifica um pouco de nitidez e usa mais bitrate.
+ */
+export type ShareMode = 'text' | 'game';
+
+export const DEFAULT_SHARE_MODE: ShareMode = 'text';
+
+export const SHARE_MODES: readonly { id: ShareMode; label: string; hint: string }[] = [
+  { id: 'text', label: 'Texto e apresentações', hint: 'Prioriza nitidez' },
+  { id: 'game', label: 'Jogos e vídeos', hint: 'Prioriza fluidez' },
+];
+
+/**
+ * Bitrate total no modo jogo. Cenas de jogo mudam quase inteiras a cada quadro e precisam de bem
+ * mais bits que uma tela de texto para não virar borrão; a camada cheia fica com ~75% disso.
+ */
+const GAME_BITRATE: Record<SharePresetId, number> = {
+  '1080p60': 14_000_000,
+  '1080p30': 9_000_000,
+  '720p60': 8_000_000,
+  '720p30': 5_000_000,
+  '480p30': 2_500_000,
+  '360p30': 1_400_000,
+};
+
+/** Bitrate total estimado de uma qualidade no modo escolhido */
+export function presetBitrate(preset: SharePreset, mode: ShareMode = DEFAULT_SHARE_MODE): number {
+  return mode === 'game' ? GAME_BITRATE[preset.id] : preset.bitrate;
+}
+
 export function getSharePreset(id: SharePresetId): SharePreset {
   return PRESETS[id] ?? PRESETS[DEFAULT_SHARE_PRESET];
 }
@@ -49,26 +81,46 @@ export type SpatialLayer = 0 | 1 | 2;
 export const HIGHEST_LAYER: SpatialLayer = 2;
 
 const LAYERS = [
-  // scale: divisor da resolução; weight: fatia do bitrate (a maior parte vai para a camada cheia)
-  { layer: 0, scale: 3, weight: 0.1 },
-  { layer: 1, scale: 1.5, weight: 0.25 },
-  { layer: 2, scale: 1, weight: 0.65 },
-] as const satisfies readonly { layer: SpatialLayer; scale: number; weight: number }[];
+  // scale: divisor da resolução; weight: fatia do bitrate (a maior parte vai para a camada cheia).
+  // gameWeight: no modo jogo, a camada cheia (a que quase todo mundo assiste) leva ainda mais
+  { layer: 0, scale: 3, weight: 0.1, gameWeight: 0.07 },
+  { layer: 1, scale: 1.5, weight: 0.25, gameWeight: 0.18 },
+  { layer: 2, scale: 1, weight: 0.65, gameWeight: 0.75 },
+] as const satisfies readonly { layer: SpatialLayer; scale: number; weight: number; gameWeight: number }[];
 
 /** Camadas menores que isso não ajudam ninguém a ler uma tela: ficam desligadas */
 const MIN_LAYER_HEIGHT = 180;
 
-export function buildEncodings(preset: SharePreset): types.RtpEncodingParameters[] {
-  const layers = LAYERS.map((layer) => ({ ...layer, active: preset.height / layer.scale >= MIN_LAYER_HEIGHT }));
-  const activeWeight = layers.reduce((sum, layer) => sum + (layer.active ? layer.weight : 0), 0);
+export interface EncodingOptions {
+  mode?: ShareMode;
+  /**
+   * Codec escolhido para a transmissão (ex.: 'video/H264'). Os encoders de H264 por hardware
+   * geralmente não suportam camadas temporais, e pedir L1T3 pode fazer o navegador cair
+   * para o encoder em software: com H264, as camadas temporais ficam de fora.
+   */
+  mimeType?: string;
+}
+
+export function buildEncodings(
+  preset: SharePreset,
+  { mode = DEFAULT_SHARE_MODE, mimeType }: EncodingOptions = {},
+): types.RtpEncodingParameters[] {
+  const total = presetBitrate(preset, mode);
+  const layers = LAYERS.map((layer) => ({
+    ...layer,
+    share: mode === 'game' ? layer.gameWeight : layer.weight,
+    active: preset.height / layer.scale >= MIN_LAYER_HEIGHT,
+  }));
+  const activeWeight = layers.reduce((sum, layer) => sum + (layer.active ? layer.share : 0), 0);
+  const temporalLayers = mimeType?.toLowerCase() !== 'video/h264';
 
   return layers.map((layer) => ({
     scaleResolutionDownBy: layer.scale,
     maxFramerate: preset.frameRate,
-    maxBitrate: Math.round((preset.bitrate * layer.weight) / activeWeight),
+    maxBitrate: Math.round((total * layer.share) / activeWeight),
     active: layer.active,
     // Três camadas temporais dentro de cada camada: permite reduzir o FPS sem trocar de resolução
-    scalabilityMode: 'L1T3',
+    ...(temporalLayers && { scalabilityMode: 'L1T3' }),
   }));
 }
 

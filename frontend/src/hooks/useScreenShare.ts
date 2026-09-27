@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { SharePresetId } from '../media/quality-presets';
+import type { SharePresetId, ShareMode } from '../media/quality-presets';
 import { ScreenShareManager, type ScreenShareState } from '../media/screen-share-manager';
 import { usePreferencesStore } from '../stores/preferences.store';
 import { toast } from '../stores/toast.store';
@@ -9,9 +9,11 @@ interface ScreenShare {
   state: ScreenShareState;
   supported: boolean;
   preset: SharePresetId;
+  mode: ShareMode;
   start: () => void;
   stop: () => void;
   setPreset: (preset: SharePresetId) => void;
+  setMode: (mode: ShareMode) => void;
   getStats: () => Promise<RTCStatsReport> | null;
 }
 
@@ -20,6 +22,8 @@ export function useScreenShare(media: RoomMedia | null): ScreenShare {
   const [manager, setManager] = useState<ScreenShareManager | null>(null);
   const preset = usePreferencesStore((s) => s.sharePreset);
   const savePreset = usePreferencesStore((s) => s.setSharePreset);
+  const mode = usePreferencesStore((s) => s.shareMode);
+  const saveMode = usePreferencesStore((s) => s.setShareMode);
   const mountedRef = useRef(true);
 
   // Declarado antes do efeito abaixo: ao desmontar, este cleanup roda primeiro
@@ -34,7 +38,8 @@ export function useScreenShare(media: RoomMedia | null): ScreenShare {
     if (!media) return;
 
     // Lê a preferência do momento sem fazer dela uma dependência: trocar a qualidade não recria o manager
-    const instance = new ScreenShareManager(media.session, media.signaling, usePreferencesStore.getState().sharePreset, {
+    const { sharePreset, shareMode } = usePreferencesStore.getState();
+    const instance = new ScreenShareManager(media.session, media.signaling, sharePreset, shareMode, {
       onChange: setState,
       onError: (message) => toast('error', 'Não foi possível compartilhar a tela', message),
     });
@@ -63,7 +68,15 @@ export function useScreenShare(media: RoomMedia | null): ScreenShare {
     [manager, savePreset],
   );
 
+  const setMode = useCallback(
+    (next: ShareMode) => {
+      saveMode(next);
+      void manager?.setMode(next);
+    },
+    [manager, saveMode],
+  );
+
   const getStats = useCallback(() => manager?.getStats() ?? null, [manager]);
 
-  return { state, supported: ScreenShareManager.isSupported(), preset, start, stop, setPreset, getStats };
+  return { state, supported: ScreenShareManager.isSupported(), preset, mode, start, stop, setPreset, setMode, getStats };
 }

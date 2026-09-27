@@ -10,6 +10,13 @@ interface StreamStatusBarProps {
 
 const dash = '—';
 
+const LIMITATION_LABELS = { cpu: 'CPU', bandwidth: 'rede', other: 'navegador' } as const;
+const LIMITATION_HINTS = {
+  cpu: 'O processador não está dando conta de codificar na qualidade escolhida',
+  bandwidth: 'A conexão não comporta o bitrate da qualidade escolhida',
+  other: 'O navegador está reduzindo a qualidade por outro motivo',
+} as const;
+
 /**
  * Status bar técnica do design system: números em mono tabular, atualizados a cada segundo.
  * Latência e perda acima dos limites aparecem como aviso.
@@ -44,6 +51,25 @@ export function StreamStatusBar({ metrics, label }: StreamStatusBarProps) {
       <Metric name="Perda" warning={lossWarning} hint="Pacotes perdidos no último segundo" className="hidden lg:inline">
         {metrics?.packetLossPct != null ? `${metrics.packetLossPct.toFixed(1)}%` : dash}
       </Metric>
+      {metrics?.captureFps != null && (
+        <Metric name="Captura" hint="FPS que o navegador está capturando, antes de codificar" className="hidden lg:inline">
+          {metrics.captureFps}
+        </Metric>
+      )}
+      {metrics?.encoder && (
+        <Metric
+          name="Encoder"
+          hint={metrics.encoder === 'hardware' ? 'Codificando na GPU' : 'Codificando na CPU'}
+          className="hidden lg:inline"
+        >
+          {metrics.encoder === 'hardware' ? 'GPU' : 'CPU'}
+        </Metric>
+      )}
+      {metrics?.limitation && metrics.limitation !== 'none' && (
+        <span className="hidden text-warning-text lg:inline" title={LIMITATION_HINTS[metrics.limitation]}>
+          Limitado por {LIMITATION_LABELS[metrics.limitation]}
+        </span>
+      )}
       {lossWarning && <span className="text-warning-text">Conexão instável</span>}
     </div>
   );
