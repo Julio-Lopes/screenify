@@ -1,8 +1,23 @@
 import type { Participant, RoomSummary } from '@screenify/shared';
-import { Link2, LoaderCircle, Lock, LogOut, MonitorOff, ScreenShare, SearchX, Unplug, WifiOff } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import {
+  ChevronLeft,
+  Link2,
+  LoaderCircle,
+  Lock,
+  LogOut,
+  MonitorOff,
+  ScreenShare,
+  SearchX,
+  Undo2,
+  Unplug,
+  Users,
+  WifiOff,
+  type LucideIcon,
+} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { DrawingToolbar } from '../annotation/DrawingToolbar';
+import { TOOLS } from '../annotation/tools';
 import { useAnnotations } from '../annotation/useAnnotations';
 import { Logo } from '../components/Logo';
 import { StateMessage } from '../components/StateMessage';
@@ -10,7 +25,7 @@ import { AvatarGroup } from '../components/room/AvatarGroup';
 import { EndRoomModal } from '../components/room/EndRoomModal';
 import { JoinForm, type JoinFormValues } from '../components/room/JoinForm';
 import { LiveBadge } from '../components/room/LiveBadge';
-import { ParticipantsPanel } from '../components/room/ParticipantsPanel';
+import { ParticipantList, ParticipantsPanel } from '../components/room/ParticipantsPanel';
 import { QualityBadges } from '../components/room/QualityBadges';
 import { RemoteScreen } from '../components/room/RemoteScreen';
 import { RoomShell } from '../components/room/RoomShell';
@@ -18,6 +33,7 @@ import { ScreenPreview } from '../components/room/ScreenPreview';
 import { ShareScreenButton } from '../components/room/ShareScreenButton';
 import { StreamStatusBar } from '../components/room/StreamStatusBar';
 import { Button } from '../components/ui/Button';
+import { Sheet } from '../components/ui/Sheet';
 import { useMediaSession } from '../hooks/useMediaSession';
 import { useRoom } from '../hooks/useRoom';
 import { useRoomConnection } from '../hooks/useRoomConnection';
@@ -34,6 +50,7 @@ import type { AppSocket } from '../services/socket';
 import { createGuestSession } from '../services/users';
 import { useSessionStore } from '../stores/session.store';
 import { toast } from '../stores/toast.store';
+import { cn } from '../utils/cn';
 import { buildRoomUrl } from '../utils/room-code';
 
 export function RoomPage() {
@@ -225,6 +242,8 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
   const navigate = useNavigate();
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [ending, setEnding] = useState(false);
+  // Painéis sobrepostos do tablet e do celular (no desktop ficam fixos na tela)
+  const [sheet, setSheet] = useState<'participants' | 'tools' | null>(null);
   const isHost = self.role === 'HOST';
 
   const media = useMediaSession(socket, joinedAt);
@@ -240,6 +259,7 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
   const sharingUserId = selfSharing ? self.userId : (screenProducer?.userId ?? null);
   const isLive = share.state.status === 'live' || otherSharer !== null;
   const view = useScreenView(media, screenProducer);
+  const canAnnotate = share.state.status === 'live' || view.state.status === 'playing';
   // Os desenhos pertencem à transmissão atual: outra transmissão começa com a tela limpa
   const annotations = useAnnotations(
     self,
@@ -274,6 +294,9 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
         ? (screenProducer?.target ?? null)
         : null;
 
+        const closeSheet = useCallback(() => setSheet(null), []);
+        const currentTool = TOOLS.find((t) => t.id === annotations.tool) ?? TOOLS[0];
+
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(buildRoomUrl(room.code));
@@ -298,12 +321,23 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
 
   return (
     <div className="flex h-dvh flex-col">
-      <header className="flex h-15 shrink-0 items-center gap-3 border-b border-border-subtle px-4 sm:gap-4 sm:px-6">
-        <Logo />
-        <span className="hidden h-5 w-px bg-border sm:block" aria-hidden />
+            <header className="flex h-15 shrink-0 items-center gap-2 border-b border-border-subtle px-2 sm:gap-4 sm:px-6">
+        {/* Celular: voltar à esquerda, como no design system; a partir do tablet, a marca */}
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          aria-label="Sair da sala"
+          className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md text-text-primary hover:bg-surface-hover focus-visible:ring-3 focus-visible:ring-primary/25 focus-visible:outline-none sm:hidden"
+        >
+          <ChevronLeft size={20} aria-hidden />
+        </button>
+        <span className="hidden sm:contents">
+          <Logo />
+          <span className="h-5 w-px bg-border" aria-hidden />
+        </span>
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <h1 className="truncate text-body-sm font-semibold">{room.name}</h1>
-          <span className="hidden shrink-0 font-mono text-caption whitespace-nowrap text-text-muted sm:inline">
+          <span className="hidden shrink-0 font-mono text-caption whitespace-nowrap text-text-muted lg:inline">
             {room.code}
           </span>
           {room.hasPassword && (
@@ -312,28 +346,45 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
           {isLive && <LiveBadge />}
           {isLive && liveTarget && <QualityBadges quality={liveTarget} />}
         </div>
-        <AvatarGroup participants={participants} />
-        <ShareScreenButton
-          state={share.state}
-          supported={share.supported}
-          otherSharerName={otherSharer?.displayName ?? null}
-          disabled={reconnecting}
-          onStart={share.start}
-          onStop={share.stop}
-        />
-        <Button variant="secondary" size="sm" onClick={copyLink}>
+        <span className="hidden lg:contents">
+          <AvatarGroup participants={participants} />
+        </span>
+        {/* Abaixo de 1024px, o painel de participantes vira um painel sobreposto */}
+        <button
+          type="button"
+          onClick={() => setSheet('participants')}
+          aria-label={`Participantes (${participants.length})`}
+          className="hidden h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 font-mono text-caption text-text-secondary hover:bg-surface-hover hover:text-text-primary focus-visible:ring-3 focus-visible:ring-primary/25 focus-visible:outline-none sm:flex lg:hidden"
+        >
+          <Users size={15} aria-hidden />
+          {participants.length}
+        </button>
+        {/* Celular sem captura de tela (o caso comum): o botão desabilitado só ocuparia espaço */}
+        <span className={share.supported ? 'contents' : 'hidden sm:contents'}>
+          <ShareScreenButton
+            state={share.state}
+            supported={share.supported}
+            otherSharerName={otherSharer?.displayName ?? null}
+            disabled={reconnecting}
+            onStart={share.start}
+            onStop={share.stop}
+          />
+        </span>
+        <Button variant="secondary" size="sm" onClick={copyLink} aria-label="Convidar">
           <Link2 size={15} aria-hidden />
-          <span className="hidden sm:inline">Convidar</span>
+          <span className="hidden lg:inline">Convidar</span>
         </Button>
-        {isHost && (
-          <Button variant="ghost" size="sm" onClick={() => setConfirmEnd(true)} className="hover:text-error-text">
-            Encerrar sala
+        <span className="hidden sm:contents">
+          {isHost && (
+            <Button variant="ghost" size="sm" onClick={() => setConfirmEnd(true)} className="hover:text-error-text">
+              Encerrar sala
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" onClick={() => navigate('/')} aria-label="Sair da sala">
+            <LogOut size={15} aria-hidden />
+            <span className="hidden lg:inline">Sair</span>
           </Button>
-        )}
-        <Button variant="ghost" size="sm" onClick={() => navigate('/')} aria-label="Sair da sala">
-          <LogOut size={15} aria-hidden />
-          <span className="hidden sm:inline">Sair</span>
-        </Button>
+        </span>
       </header>
 
       {reconnecting && (
@@ -347,8 +398,9 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
       )}
 
       <div className="flex min-h-0 flex-1">
-        <main className="flex min-w-0 flex-1 flex-col gap-3 p-4 sm:p-6">
-          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-border bg-black">
+        {/* No celular o vídeo ocupa a largura toda, sem margem nem borda */}
+        <main className="flex min-w-0 flex-1 flex-col gap-3 sm:p-6">
+          <div className="flex min-h-56 flex-none items-center justify-center overflow-hidden bg-black max-sm:aspect-video sm:min-h-0 sm:flex-1 sm:rounded-lg sm:border sm:border-border">
             {share.state.status === 'connecting' || share.state.status === 'live' ? (
               <ScreenPreview
                 stream={share.state.stream}
@@ -407,9 +459,9 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
               />
             )}
           </div>
-          {/* A barra aparece só quando há uma tela para anotar */}
-          {(share.state.status === 'live' || view.state.status === 'playing') && (
-            <div className="flex shrink-0 justify-center">
+          {/* A barra aparece só quando há uma tela para anotar; no celular ela vive no painel de ferramentas */}
+          {canAnnotate && (
+            <div className="hidden shrink-0 justify-center sm:flex">
               <DrawingToolbar annotations={annotations} />
             </div>
           )}
@@ -423,6 +475,47 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
           label={sending ? 'Transmitindo' : `Assistindo ${otherSharer?.displayName ?? ''}`.trim()}
         />
       )}
+      {/* Celular: barra de ações inferior com alvos de 44px, como no design system */}
+      <nav
+        aria-label="Ações da sala"
+        className="flex shrink-0 items-center justify-around border-t border-border-subtle bg-surface pb-[env(safe-area-inset-bottom)] sm:hidden"
+      >
+        <MobileAction
+          icon={currentTool.icon}
+          label="Ferramentas"
+          active={annotations.tool !== 'select'}
+          disabled={!canAnnotate}
+          onClick={() => setSheet('tools')}
+        />
+        <MobileAction
+          icon={Undo2}
+          label="Desfazer"
+          disabled={!canAnnotate || !annotations.canUndo}
+          onClick={annotations.undo}
+        />
+        <MobileAction
+          icon={Users}
+          label={`Pessoas (${participants.length})`}
+          onClick={() => setSheet('participants')}
+        />
+      </nav>
+
+      <Sheet open={sheet === 'participants'} onClose={closeSheet} title={`Participantes · ${participants.length}`}>
+        <ParticipantList participants={participants} selfId={self.userId} sharingUserId={sharingUserId} />
+        {isHost && (
+          <div className="mt-4 border-t border-border-subtle pt-4 sm:hidden">
+            <Button variant="danger" className="w-full" onClick={() => setConfirmEnd(true)}>
+              Encerrar sala
+            </Button>
+          </div>
+        )}
+      </Sheet>
+
+      <Sheet open={sheet === 'tools' && canAnnotate} onClose={closeSheet} title="Ferramentas">
+        <div className="flex justify-center">
+          <DrawingToolbar annotations={annotations} shortcuts={false} onToolSelected={closeSheet} />
+        </div>
+      </Sheet>
       <EndRoomModal open={confirmEnd} ending={ending} onCancel={() => setConfirmEnd(false)} onConfirm={endRoom} />
     </div>
   );
@@ -452,5 +545,32 @@ function Loading({ text }: { text: string }) {
       <LoaderCircle size={16} className="animate-spin" aria-hidden />
       {text}
     </div>
+  );
+}
+
+interface MobileActionProps {
+  icon: LucideIcon;
+  label: string;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}
+
+function MobileAction({ icon: Icon, label, active, disabled, onClick }: MobileActionProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={active}
+      className={cn(
+        'flex min-h-11 min-w-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md px-3 py-1.5 text-[11px] font-medium',
+        'focus-visible:ring-3 focus-visible:ring-primary/25 focus-visible:outline-none disabled:text-text-disabled',
+        active ? 'text-primary-hover' : 'text-text-secondary',
+      )}
+    >
+      <Icon size={20} aria-hidden />
+      {label}
+    </button>
   );
 }

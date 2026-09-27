@@ -31,12 +31,17 @@ export function StreamStatusBar({ metrics, label }: StreamStatusBarProps) {
       <Metric name="Resolução">
         {metrics?.width && metrics.height ? `${metrics.width}×${metrics.height}` : dash}
       </Metric>
-      <Metric name="FPS">{metrics?.fps ?? dash}</Metric>
-      <Metric name="Bitrate">{metrics?.bitrateKbps != null ? formatBitrate(metrics.bitrateKbps) : dash}</Metric>
+      {/* Em telas menores, só qualidade e latência, como no design system */}
+      <Metric name="FPS" className="hidden lg:inline">
+        {metrics?.fps ?? dash}
+      </Metric>
+      <Metric name="Bitrate" className="hidden lg:inline">
+        {metrics?.bitrateKbps != null ? formatBitrate(metrics.bitrateKbps) : dash}
+      </Metric>
       <Metric name="RTT" warning={rttWarning} hint="Tempo de ida e volta até o servidor">
         {metrics?.rttMs != null ? `${metrics.rttMs} ms` : dash}
       </Metric>
-      <Metric name="Perda" warning={lossWarning} hint="Pacotes perdidos no último segundo">
+      <Metric name="Perda" warning={lossWarning} hint="Pacotes perdidos no último segundo" className="hidden lg:inline">
         {metrics?.packetLossPct != null ? `${metrics.packetLossPct.toFixed(1)}%` : dash}
       </Metric>
       {lossWarning && <span className="text-warning-text">Conexão instável</span>}
@@ -48,12 +53,13 @@ interface MetricProps {
   name: string;
   warning?: boolean;
   hint?: string;
+  className?: string;
   children: ReactNode;
 }
 
-function Metric({ name, warning, hint, children }: MetricProps) {
+function Metric({ name, warning, hint, className, children }: MetricProps) {
   return (
-    <span title={hint}>
+    <span title={hint} className={className}>
       {name} <span className={cn(warning ? 'text-warning-text' : 'text-text-primary')}>{children}</span>
     </span>
   );

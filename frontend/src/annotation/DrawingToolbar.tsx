@@ -16,12 +16,24 @@ function isTyping(target: EventTarget | null): boolean {
  * Drawing Toolbar do design system: ferramentas à esquerda, cor e estilo no meio,
  * histórico à direita. Cada botão tem dica com atalho de teclado.
  */
-export function DrawingToolbar({ annotations }: { annotations: Annotations }) {
+interface DrawingToolbarProps {
+  annotations: Annotations;
+  /**
+   * Atalhos de teclado ligados. Só uma barra na tela pode tê-los: com duas (a fixa e a do painel
+   * do celular), um Ctrl+Z desfaria duas vezes.
+   */
+  shortcuts?: boolean;
+  /** Chamado ao escolher uma ferramenta com clique ou toque; o painel do celular fecha para liberar o desenho */
+  onToolSelected?: () => void;
+}
+
+export function DrawingToolbar({ annotations, shortcuts = true, onToolSelected }: DrawingToolbarProps) {
   const { tool, setTool, undo, redo, canUndo, canRedo, clear, isHost, strokes, canErase } = annotations;
   const hasErasable = strokes.some(canErase);
 
   // Atalhos: uma letra por ferramenta, Esc volta a selecionar, Ctrl+Z e Ctrl+Shift+Z para o histórico
   useEffect(() => {
+    if (!shortcuts) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTyping(event.target)) return;
       const key = event.key.toLowerCase();
@@ -48,7 +60,7 @@ export function DrawingToolbar({ annotations }: { annotations: Annotations }) {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [setTool, undo, redo]);
+  }, [shortcuts, setTool, undo, redo]);
 
   return (
     <div
@@ -63,7 +75,10 @@ export function DrawingToolbar({ annotations }: { annotations: Annotations }) {
           label={t.label}
           shortcut={t.key}
           active={tool === t.id}
-          onClick={() => setTool(t.id)}
+          onClick={() => {
+            setTool(t.id);
+            onToolSelected?.();
+          }}
         />
       ))}
 

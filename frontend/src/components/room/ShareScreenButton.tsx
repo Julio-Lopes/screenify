@@ -22,9 +22,9 @@ export function ShareScreenButton({
 }: ShareScreenButtonProps) {
   if (state.status === 'live' || state.status === 'connecting') {
     return (
-      <Button variant="danger" size="sm" onClick={onStop}>
+      <Button variant="danger" size="sm" onClick={onStop} aria-label="Parar de compartilhar a tela">
         <ScreenShareOff size={15} aria-hidden />
-        <span className="hidden sm:inline">Parar</span>
+        <span className="hidden lg:inline">Parar</span>
       </Button>
     );
   }
@@ -43,9 +43,10 @@ export function ShareScreenButton({
         disabled={Boolean(blockedReason) || disabled}
         loading={state.status === 'starting'}
         loadingText="Iniciando…"
+        aria-label="Compartilhar tela"
       >
         <ScreenShare size={15} aria-hidden />
-        <span className="hidden sm:inline">Compartilhar tela</span>
+        <span className="hidden lg:inline">Compartilhar tela</span>
       </Button>
     </span>
   );

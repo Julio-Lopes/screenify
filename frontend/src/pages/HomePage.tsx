@@ -1,12 +1,19 @@
 import { ArrowRight, Hash, Plus } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { Button } from '../components/ui/Button';
 import { TextField } from '../components/ui/TextField';
 import { useUiStore } from '../stores/ui.store';
 import { isValidRoomCode, normalizeRoomCodeInput } from '../utils/room-code';
+import { loadRoomPage } from './load-room-page';
 
 export function HomePage() {
+  // Com a Home na tela e o navegador ocioso, baixa a sala: entrar nela fica instantâneo
+  useEffect(() => {
+    const id = window.setTimeout(() => void loadRoomPage(), 1500);
+    return () => window.clearTimeout(id);
+  }, []);
+
   const openCreateRoom = useUiStore((s) => s.openCreateRoom);
   const navigate = useNavigate();
   const [code, setCode] = useState('');

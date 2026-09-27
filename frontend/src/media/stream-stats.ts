@@ -95,5 +95,9 @@ export function formatBitrate(kbps: number): string {
   return kbps >= 1000 ? `${(kbps / 1000).toFixed(1)} Mbps` : `${kbps} kbps`;
 }
 
-/** Limites do design system: acima deles o valor aparece como aviso */
-export const METRIC_LIMITS = { rttMs: 35, packetLossPct: 2 } as const;
+/**
+ * Acima destes valores, o número aparece como aviso. A perda de 2% é a do design system.
+ * O RTT do design system (35 ms) é de rede local; pela internet até a VPS, até 100 ms
+ * ainda dá uma experiência fluida para compartilhar tela, e acima disso o atraso começa a ser notado.
+ */
+export const METRIC_LIMITS = { rttMs: 100, packetLossPct: 2 } as const;

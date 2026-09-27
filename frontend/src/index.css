@@ -79,6 +79,8 @@
   --animate-modal: sf-modal 200ms var(--ease-standard);
   --animate-toast: sf-toast 200ms var(--ease-standard);
   --animate-enter: sf-enter 220ms var(--ease-standard);
+  --animate-fade: sf-fade 160ms var(--ease-standard);
+  --animate-drawer: sf-drawer 220ms var(--ease-standard);
 
   @keyframes sf-modal {
     from {
@@ -110,6 +112,19 @@
     to {
       opacity: 1;
       transform: none;
+    }
+  }
+
+  @keyframes sf-fade {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes sf-drawer {
+    from {
+      opacity: 0;
+      transform: translateX(16px);
     }
   }
 }
