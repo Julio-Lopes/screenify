@@ -5,7 +5,7 @@ import { env } from '../config/env';
 export type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 export function createSocket(token: string): AppSocket {
-  return io(env.apiUrl, {
+  return io(env.wsUrl, {
     auth: { token },
     autoConnect: false,
     // Vai direto para WebSocket, sem a fase de long-polling do Socket.IO
