@@ -99,20 +99,32 @@ export interface EncodingOptions {
    * para o encoder em software: com H264, as camadas temporais ficam de fora.
    */
   mimeType?: string;
+  /** false = uma camada só. No modo jogo evita codificar a tela três vezes */
+  simulcast?: boolean;
 }
 
 export function buildEncodings(
   preset: SharePreset,
-  { mode = DEFAULT_SHARE_MODE, mimeType }: EncodingOptions = {},
+  { mode = DEFAULT_SHARE_MODE, mimeType, simulcast = true }: EncodingOptions = {},
 ): types.RtpEncodingParameters[] {
   const total = presetBitrate(preset, mode);
+  const temporalLayers = mimeType?.toLowerCase() !== 'video/h264';
+
+  if (!simulcast) {
+    return [{
+      maxFramerate: preset.frameRate,
+      // Mesma fatia que a camada cheia teria, para não estourar o upload de quem transmite
+      maxBitrate: Math.round(total * LAYERS[2].gameWeight),
+      ...(temporalLayers && { scalabilityMode: 'L1T3' }),
+    }];
+  }
+
   const layers = LAYERS.map((layer) => ({
     ...layer,
     share: mode === 'game' ? layer.gameWeight : layer.weight,
     active: preset.height / layer.scale >= MIN_LAYER_HEIGHT,
   }));
   const activeWeight = layers.reduce((sum, layer) => sum + (layer.active ? layer.share : 0), 0);
-  const temporalLayers = mimeType?.toLowerCase() !== 'video/h264';
 
   return layers.map((layer) => ({
     scaleResolutionDownBy: layer.scale,

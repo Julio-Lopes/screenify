@@ -45,6 +45,8 @@ export class ScreenShareManager {
   private presetId: SharePresetId;
   private mode: ShareMode;
   private codecInfo: CodecInfo = { mimeType: 'video/VP8', hardware: false };
+  /** Decidido no início da transmissão: a quantidade de camadas não muda sem criar outro Producer */
+  private simulcast = true;
   private stream: MediaStream | null = null;
   private producer: types.Producer | null = null;
   private transport: types.Transport | null = null;
@@ -138,13 +140,18 @@ export class ScreenShareManager {
 
       // O codec só pode ser escolhido aqui: trocar depois exigiria um novo Producer
       const device = await this.session.getDevice();
+      this.simulcast = this.mode !== 'game';
       const { codec, hardware } = await chooseCodec(device, preset, this.mode);
       this.codecInfo = { mimeType: codec?.mimeType ?? 'video/VP8', hardware };
 
       this.producer = await transport.produce({
         track,
         codec,
-        encodings: buildEncodings(preset, { mode: this.mode, mimeType: this.codecInfo.mimeType }),
+        encodings: buildEncodings(preset, {
+          mode: this.mode,
+          mimeType: this.codecInfo.mimeType,
+          simulcast: this.simulcast,
+        }),
         // No modo jogo começa mais alto: com 1 Mbps, os primeiros segundos ficam borrados até a rede ser medida
         codecOptions: { videoGoogleStartBitrate: this.mode === 'game' ? 3000 : 1000 },
         appData: { quality: this.getQuality() ?? undefined, target: this.getTarget() },
@@ -232,7 +239,11 @@ export class ScreenShareManager {
     const sender = this.producer?.rtpSender;
     if (!sender) return;
 
-    const targets = buildEncodings(getSharePreset(presetId), { mode: this.mode, mimeType: this.codecInfo.mimeType });
+    const targets = buildEncodings(getSharePreset(presetId), {
+      mode: this.mode,
+      mimeType: this.codecInfo.mimeType,
+      simulcast: this.simulcast,
+    });
     const parameters = sender.getParameters();
     parameters.encodings.forEach((encoding, index) => {
       const target = targets[index];
