@@ -137,27 +137,7 @@ export class ScreenShareManager {
     try {
       const transport = await this.session.getSendTransport();
       this.watchTransport(transport);
-
-      // O codec só pode ser escolhido aqui: trocar depois exigiria um novo Producer
-      const device = await this.session.getDevice();
-      this.simulcast = this.mode !== 'game';
-      const { codec, hardware } = await chooseCodec(device, preset, this.mode);
-      this.codecInfo = { mimeType: codec?.mimeType ?? 'video/VP8', hardware };
-
-      this.producer = await transport.produce({
-        track,
-        codec,
-        encodings: buildEncodings(preset, {
-          mode: this.mode,
-          mimeType: this.codecInfo.mimeType,
-          simulcast: this.simulcast,
-        }),
-        // No modo jogo começa mais alto: com 1 Mbps, os primeiros segundos ficam borrados até a rede ser medida
-        codecOptions: { videoGoogleStartBitrate: this.mode === 'game' ? 3000 : 1000 },
-        appData: { quality: this.getQuality() ?? undefined, target: this.getTarget() },
-      });
-
-      await this.applyDegradationPreference();
+      await this.produce(transport, track);
 
       if (transport.connectionState === 'connected') {
         this.goLive();
@@ -191,8 +171,8 @@ export class ScreenShareManager {
   }
 
   /**
-   * Troca o modo durante a transmissão. O comportamento do codificador e os bitrates mudam na hora;
-   * o codec (VP8 ou H264) só muda na próxima vez que a pessoa começar a compartilhar.
+   * Troca o modo durante a transmissão. Codec e quantidade de camadas são fixos no Producer:
+   * entrar ou sair do modo jogo recria o Producer, e quem assiste reconecta sozinho.
    */
   async setMode(mode: ShareMode): Promise<void> {
     this.mode = mode;
@@ -200,6 +180,12 @@ export class ScreenShareManager {
     if (!track || !this.producer) return;
 
     this.applyContentHint(track);
+
+    if (this.simulcast === (mode === 'game')) {
+      await this.republish(track);
+      return;
+    }
+
     try {
       await this.applyEncodings(this.presetId);
       await this.applyDegradationPreference();
@@ -232,6 +218,57 @@ export class ScreenShareManager {
     this.producer?.close();
     this.producer = null;
     this.releaseCapture();
+  }
+
+  /** Escolhe codec e camadas para o modo atual e cria o Producer da tela */
+  private async produce(transport: types.Transport, track: MediaStreamTrack): Promise<void> {
+    const preset = getSharePreset(this.presetId);
+    const device = await this.session.getDevice();
+    this.simulcast = this.mode !== 'game';
+    const { codec, hardware } = await chooseCodec(device, preset, this.mode);
+    this.codecInfo = { mimeType: codec?.mimeType ?? 'video/VP8', hardware };
+
+    this.producer = await transport.produce({
+      track,
+      codec,
+      encodings: buildEncodings(preset, {
+        mode: this.mode,
+        mimeType: this.codecInfo.mimeType,
+        simulcast: this.simulcast,
+      }),
+      // No modo jogo começa mais alto: com 1 Mbps, os primeiros segundos ficam borrados até a rede ser medida
+      codecOptions: { videoGoogleStartBitrate: this.mode === 'game' ? 3000 : 1000 },
+      // A captura sobrevive ao Producer: ao trocar de modo, o mesmo track vai para o próximo
+      stopTracks: false,
+      appData: { quality: this.getQuality() ?? undefined, target: this.getTarget() },
+    });
+
+    await this.applyDegradationPreference();
+  }
+
+  /**
+   * Troca o Producer mantendo a captura. O servidor aceita uma tela por sala,
+   * então o antigo precisa fechar antes de o novo nascer.
+   */
+  private async republish(track: MediaStreamTrack): Promise<void> {
+    const old = this.producer;
+    const transport = this.transport;
+    if (!old || !transport) return;
+
+    this.producer = null;
+    old.close();
+    try {
+      await this.signaling.closeProducer(old.id);
+      await this.produce(transport, track);
+    } catch (error) {
+      await this.stop();
+      this.listeners.onError(this.describeError(error));
+      return;
+    }
+
+    if (this.state.status === 'live') {
+      this.setState({ ...this.state, codec: this.codecInfo });
+    }
   }
 
   /** Atualiza bitrate, FPS e camadas ativas direto no RTCRtpSender, sem renegociar a conexão */
