@@ -10,6 +10,7 @@ Crie uma sala, envie o link e compartilhe sua tela. Quem entra assiste em tempo 
 
 - **Salas por link**, com código curto (`X7K2-9MPA`) e senha opcional
 - **Compartilhamento de tela** em até 1080p a 60 FPS, com a qualidade trocada durante a transmissão sem derrubar ninguém
+- **Áudio da aba ou do sistema** junto com a tela (Chrome e Edge, ao compartilhar uma aba ou a tela inteira), em Opus estéreo e sem o processamento de voz que estraga música e jogos; quem assiste pode silenciar
 - **Simulcast**: cada espectador recebe a resolução que a conexão dele aguenta (1080p, 720p ou 360p) e pode fixar uma
 - **Anotações em tempo real**: lápis, marcador, linha, seta, círculo, retângulo, texto e borracha, com desfazer e refazer; os traços aparecem para os outros enquanto ainda estão sendo desenhados
 - **Cursores colaborativos** com nome e cor de cada participante
@@ -43,13 +44,13 @@ flowchart LR
   B -- "REST + WebSocket" --> T
   S --> P
   S -. controla .-> M
-  A == "vídeo WebRTC (UDP 40000)" ==> M
+  A == "vídeo e áudio WebRTC (UDP 40000)" ==> M
   M == "uma cópia por espectador" ==> B
 ```
 
 **Por que um SFU.** Em WebRTC ponto a ponto, quem transmite enviaria uma cópia da tela para cada espectador, e a conexão dele viraria o gargalo a partir de três ou quatro pessoas. Com o mediasoup no meio, quem transmite envia uma vez, e o servidor replica sem decodificar o vídeo (o que seria caro demais para uma VPS de um núcleo).
 
-**Sinalização e mídia separadas.** O WebSocket carrega tudo que é pequeno e precisa ser confiável: entrar na sala, negociar a conexão de mídia, desenhos e cursores. O vídeo vai direto para o mediasoup por UDP, numa única porta (`WebRtcServer`), com TCP na mesma porta como plano B para redes que bloqueiam UDP.
+**Sinalização e mídia separadas.** O WebSocket carrega tudo que é pequeno e precisa ser confiável: entrar na sala, negociar a conexão de mídia, desenhos e cursores. A mídia (vídeo e áudio) vai direto para o mediasoup por UDP, numa única porta (`WebRtcServer`), com TCP na mesma porta como plano B para redes que bloqueiam UDP.
 
 **Coordenadas normalizadas.** Desenhos e cursores trafegam como pontos de 0 a 1 relativos à imagem da tela, não aos pixels de quem desenha. Um círculo feito sobre a tela em 1080p cai no mesmo lugar para quem assiste em 360p numa janela pequena.
 
@@ -115,7 +116,6 @@ O backend precisa da porta **40000 em UDP e TCP** liberada no firewall da VPS e 
 
 ## Próximos passos
 
-- Áudio do sistema junto com a tela (Chrome e Edge, ao compartilhar aba ou tela inteira)
 - Servidor TURN para redes que bloqueiam UDP e também a porta 40000 em TCP
 - Mais de um worker do mediasoup (e salas distribuídas entre eles) numa VPS com mais núcleos
 - Chat de texto na sala

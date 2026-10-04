@@ -39,6 +39,7 @@ import { useRoom } from '../hooks/useRoom';
 import { useRoomConnection } from '../hooks/useRoomConnection';
 import { useRoomProducers } from '../hooks/useRoomProducers';
 import { useScreenShare } from '../hooks/useScreenShare';
+import { useScreenAudio } from '../hooks/useScreenAudio';
 import { useScreenView } from '../hooks/useScreenView';
 import { useStreamStats } from '../hooks/useStreamStats';
 import { usePreferencesStore } from '../stores/preferences.store';
@@ -259,6 +260,10 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
   const sharingUserId = selfSharing ? self.userId : (screenProducer?.userId ?? null);
   const isLive = share.state.status === 'live' || otherSharer !== null;
   const view = useScreenView(media, screenProducer);
+  const screenAudioProducer = screenProducer
+    ? (producers.find((p) => p.source === 'screen' && p.kind === 'audio' && p.userId === screenProducer.userId) ?? null)
+    : null;
+  const screenAudio = useScreenAudio(media, screenAudioProducer);
   const canAnnotate = share.state.status === 'live' || view.state.status === 'playing';
   // Os desenhos pertencem à transmissão atual: outra transmissão começa com a tela limpa
   const annotations = useAnnotations(
@@ -417,6 +422,7 @@ function RoomView({ room, self, participants, reconnecting, token, socket, joine
               view.state.status === 'playing' ? (
                 <RemoteScreen
                   stream={view.state.stream}
+                  audioStream={screenAudio}
                   sharerName={otherSharer.displayName}
                   layers={view.layers}
                   selectedLayer={view.selectedLayer}

@@ -10,12 +10,12 @@ interface ChromeDisplayMediaOptions extends DisplayMediaStreamOptions {
 export function displayMediaOptions(preset: SharePreset): ChromeDisplayMediaOptions {
   return {
     video: captureConstraints(preset),
-    // Áudio do sistema é opcional no prompt e fica para uma fase própria
-    audio: false,
+    // Áudio da aba ou do sistema: sem o processamento de voz, que estraga música e jogos
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
     // Esconde a própria aba do Screenify da lista: compartilhá-la criaria um espelho infinito
     selfBrowserSurface: 'exclude',
     // Permite trocar de janela/aba sem parar a transmissão
     surfaceSwitching: 'include',
-    systemAudio: 'exclude',
+    systemAudio: 'include',
   };
 } 

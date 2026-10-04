@@ -49,6 +49,8 @@ export class ScreenShareManager {
   private simulcast = true;
   private stream: MediaStream | null = null;
   private producer: types.Producer | null = null;
+  /** Áudio da aba ou do sistema, quando a pessoa marcou a opção no prompt do navegador */
+  private audioProducer: types.Producer | null = null;
   private transport: types.Transport | null = null;
   private qualityTimer: number | null = null;
   private disposed = false;
@@ -138,6 +140,7 @@ export class ScreenShareManager {
       const transport = await this.session.getSendTransport();
       this.watchTransport(transport);
       await this.produce(transport, track);
+      await this.produceAudio(transport, stream.getAudioTracks()[0]);
 
       if (transport.connectionState === 'connected') {
         this.goLive();
@@ -199,11 +202,12 @@ export class ScreenShareManager {
   }
 
   async stop(): Promise<void> {
-    const producer = this.producer;
+    const producers = [this.producer, this.audioProducer].filter((p): p is types.Producer => p !== null);
     this.producer = null;
+    this.audioProducer = null;
     this.releaseCapture();
 
-    if (producer) {
+    for (const producer of producers) {
       producer.close();
       await this.signaling.closeProducer(producer.id).catch(() => undefined);
     }
@@ -216,7 +220,9 @@ export class ScreenShareManager {
   dispose(): void {
     this.disposed = true;
     this.producer?.close();
+    this.audioProducer?.close();
     this.producer = null;
+    this.audioProducer = null;
     this.releaseCapture();
   }
 
@@ -244,6 +250,24 @@ export class ScreenShareManager {
     });
 
     await this.applyDegradationPreference();
+  }
+
+  /**
+   * Transmite o áudio capturado junto com a tela. Ele não é recriado ao trocar de modo,
+   * então o som segue sem cortes quando o vídeo é republicado.
+   */
+  private async produceAudio(transport: types.Transport, track: MediaStreamTrack | undefined): Promise<void> {
+    if (!track) return;
+    try {
+      this.audioProducer = await transport.produce({
+        track,
+        codecOptions: { opusStereo: true, opusDtx: false, opusFec: true, opusMaxAverageBitrate: 128_000 },
+        stopTracks: false,
+      });
+    } catch {
+      // Sem áudio a tela continua: não derruba a transmissão
+      this.listeners.onError('Não foi possível transmitir o áudio; a tela segue sem som.');
+    }
   }
 
   /**

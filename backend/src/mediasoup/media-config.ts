@@ -3,7 +3,7 @@ import type { types } from 'mediasoup';
 /**
  * Codecs que o Router aceita. O navegador escolhe um deles ao transmitir.
  * VP8 é o mais compatível e suporta simulcast; VP9 e H264 ficam disponíveis
- * para a Fase 10 (qualidade), e o Opus já fica pronto para áudio no futuro.
+ * para a Fase 10 (qualidade), e o Opus leva o áudio da aba ou do sistema.
  */
 export const MEDIA_CODECS: types.RouterRtpCodecCapability[] = [
   {

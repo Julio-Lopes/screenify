@@ -1,4 +1,4 @@
-import { LoaderCircle, Maximize, Minimize, TriangleAlert } from 'lucide-react';
+import { LoaderCircle, Maximize, Minimize, TriangleAlert, VolumeX } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { AnnotationLayer } from '../../annotation/AnnotationLayer';
 import type { Annotations } from '../../annotation/useAnnotations';
@@ -6,9 +6,12 @@ import { CursorLayer, type CursorContext } from '../../cursor/CursorLayer';
 import { CursorToggle } from '../../cursor/CursorToggle';
 import type { LayerOption, SpatialLayer } from '../../media/quality-presets';
 import { QualityMenu } from '../ui/QualityMenu';
+import { AudioToggle } from './AudioToggle';
 
 interface RemoteScreenProps {
   stream: MediaStream;
+  /** Áudio da aba ou do sistema de quem transmite; null quando a transmissão é sem som */
+  audioStream: MediaStream | null;
   sharerName: string;
   /** Resoluções da live, da maior para a menor; vazio quando não há o que escolher */
   layers: LayerOption[];
@@ -23,6 +26,7 @@ interface RemoteScreenProps {
 /** A tela de quem está transmitindo, como chega para quem assiste */
 export function RemoteScreen({
   stream,
+  audioStream,
   sharerName,
   layers,
   selectedLayer,
@@ -37,6 +41,10 @@ export function RemoteScreen({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  // O <video> fica mudo para o autoplay funcionar sempre; o som toca num <audio> à parte
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [audioBlocked, setAudioBlocked] = useState(false);
+  const [muted, setMuted] = useState(false);
   const [firstFrame, setFirstFrame] = useState(false);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -66,6 +74,30 @@ export function RemoteScreen({
   }, [stream]);
 
   useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.srcObject = audioStream;
+    if (!audioStream) return;
+
+    // Quem abre o link direto, sem ter clicado em nada na página, cai no bloqueio de autoplay com som
+    audio
+      .play()
+      .then(() => setAudioBlocked(false))
+      .catch(() => setAudioBlocked(true));
+  }, [audioStream]);
+
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.muted = muted;
+  }, [muted]);
+
+  function unblockAudio() {
+    void audioRef.current
+      ?.play()
+      .then(() => setAudioBlocked(false))
+      .catch(() => undefined);
+  }
+
+  useEffect(() => {
     const onChange = () => setFullscreen(document.fullscreenElement === containerRef.current);
     document.addEventListener('fullscreenchange', onChange);
     return () => document.removeEventListener('fullscreenchange', onChange);
@@ -91,6 +123,7 @@ export function RemoteScreen({
         className="h-full w-full object-contain"
         aria-label={`Tela de ${sharerName}`}
       />
+      <audio ref={audioRef} />
       <AnnotationLayer videoRef={videoRef} annotations={annotations} />
       <CursorLayer videoRef={videoRef} cursors={cursors} />
 
@@ -121,6 +154,19 @@ export function RemoteScreen({
         </div>
 
         <div className="flex items-center gap-2">
+          {audioStream &&
+            (audioBlocked ? (
+              <button
+                type="button"
+                onClick={unblockAudio}
+                className="flex h-7 cursor-pointer items-center gap-1.5 rounded-sm border border-border bg-surface px-2.5 text-caption text-text-primary transition-colors duration-120 hover:bg-surface-hover focus-visible:ring-3 focus-visible:ring-primary/25 focus-visible:outline-none"
+              >
+                <VolumeX size={14} aria-hidden />
+                Ativar som
+              </button>
+            ) : (
+              <AudioToggle muted={muted} onToggle={() => setMuted((m) => !m)} />
+            ))}
           <CursorToggle visible={cursors.visible} onToggle={cursors.toggle} />
           {options.length > 1 && selectedLabel && (
             <QualityMenu
